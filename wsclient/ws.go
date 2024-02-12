@@ -24,9 +24,6 @@ var (
 	mapMutex    sync.Mutex
 )
 
-// mutex 用于保证ActionMessages切片的并发安全
-var mutex sync.Mutex
-
 type WebSocketClient struct {
 	conn           *websocket.Conn
 	Context        *core.Context
