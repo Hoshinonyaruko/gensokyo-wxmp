@@ -9,6 +9,7 @@ import (
 	"github.com/chanxuehong/wechat/mp/core"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/config"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/echo"
+	"github.com/hoshinonyaruko/gensokyo-wxmp/handlers"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/idmap"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/mylog"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/wsclient"
@@ -61,12 +62,13 @@ func ProcessC2CMessage(data *core.Context, Wsclient []*wsclient.WebSocketClient)
 	// }
 	//框架内指令
 	//p.HandleFrameworkCommand(messageText, data, "group_private")
-	// 如果在Array模式下, 则处理Message为Segment格式
-	// var segmentedMessages interface{} = messageText
-	// if config.GetArrayValue() {
-	// 	segmentedMessages = handlers.ConvertToSegmentedMessage(data)
-	// }
+
 	messageText := data.MixedMsg.Content
+	//如果在Array模式下, 则处理Message为Segment格式
+	var segmentedMessages interface{} = messageText
+	if config.GetArrayValue() {
+		segmentedMessages = handlers.ConvertToSegmentedMessage(messageText)
+	}
 	var IsBindedUserId bool
 	// if config.GetHashIDValue() {
 	// 	IsBindedUserId = idmap.CheckValue(data.Author.ID, userid64)
@@ -75,7 +77,7 @@ func ProcessC2CMessage(data *core.Context, Wsclient []*wsclient.WebSocketClient)
 	// }
 	privateMsg := OnebotPrivateMessage{
 		RawMessage:  messageText,
-		Message:     messageText,
+		Message:     segmentedMessages,
 		MessageID:   123,
 		MessageType: "private",
 		PostType:    "message",

@@ -3,10 +3,8 @@ package Processor
 
 import (
 	"bytes"
-	"crypto/rand"
 	"encoding/json"
 	"fmt"
-	"math/big"
 	"net/http"
 	"reflect"
 	"strings"
@@ -955,20 +953,20 @@ func PostMessageToUrls(message map[string]interface{}) {
 // 	return md, kb
 // }
 
-func getRandomSelection(slice []string, max int) []string {
-	if len(slice) <= max {
-		return slice
-	}
+// func getRandomSelection(slice []string, max int) []string {
+// 	if len(slice) <= max {
+// 		return slice
+// 	}
 
-	selected := make(map[int]bool)
-	var result []string
-	for len(result) < max {
-		index, _ := rand.Int(rand.Reader, big.NewInt(int64(len(slice))))
-		idx := int(index.Int64())
-		if !selected[idx] {
-			selected[idx] = true
-			result = append(result, slice[idx])
-		}
-	}
-	return result
-}
+// 	selected := make(map[int]bool)
+// 	var result []string
+// 	for len(result) < max {
+// 		index, _ := rand.Int(rand.Reader, big.NewInt(int64(len(slice))))
+// 		idx := int(index.Int64())
+// 		if !selected[idx] {
+// 			selected[idx] = true
+// 			result = append(result, slice[idx])
+// 		}
+// 	}
+// 	return result
+// }
