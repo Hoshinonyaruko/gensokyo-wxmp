@@ -822,6 +822,73 @@ func ConvertToSegmentedMessage(data string) []map[string]interface{} {
 	return messageSegments
 }
 
+// 		if userID == AppID {
+// 			if config.GetRemoveAt() {
+// 				// 根据配置移除
+// 				msg.Content = strings.Replace(msg.Content, match[0], "", 1)
+// 				continue // 跳过当前循环迭代
+// 			} else {
+// 				//将其转换为AppID
+// 				userID = AppID
+// 				// 构建at部分的映射并加入到messageSegments
+// 				atSegment := map[string]interface{}{
+// 					"type": "at",
+// 					"data": map[string]interface{}{
+// 						"qq": userID,
+// 					},
+// 				}
+// 				messageSegments = append(messageSegments, atSegment)
+// 				// 从原始内容中移除at部分
+// 				msg.Content = strings.Replace(msg.Content, match[0], "", 1)
+// 				continue // 跳过当前循环迭代
+// 			}
+// 		}
+// 		// 不是 AppID，进行正常处理
+// 		userID64, err := idmap.StoreIDv2(userID)
+// 		if err != nil {
+// 			// 如果存储失败，记录错误并继续使用原始 userID
+// 			mylog.Printf("Error storing ID: %v", err)
+// 		} else {
+// 			// 类型转换成功，使用新的 userID
+// 			userID = strconv.FormatInt(userID64, 10)
+// 		}
+
+// 		// 构建at部分的映射并加入到messageSegments
+// 		atSegment := map[string]interface{}{
+// 			"type": "at",
+// 			"data": map[string]interface{}{
+// 				"qq": userID,
+// 			},
+// 		}
+// 		messageSegments = append(messageSegments, atSegment)
+
+// 		// 从原始内容中移除at部分
+// 		msg.Content = strings.Replace(msg.Content, match[0], "", 1)
+// 	}
+// 	//结构 <@!>空格/内容
+// 	//如果移除了前部at,信息就会以空格开头,因为只移去了最前面的at,但at后紧跟随一个空格
+// 	if config.GetRemoveAt() {
+// 		//再次去前后空
+// 		if !menumsg {
+// 			msg.Content = strings.TrimSpace(msg.Content)
+// 		}
+// 	}
+
+	// 内容被视为文本部分
+	if data != "" {
+		textSegment := map[string]interface{}{
+			"type": "text",
+			"data": map[string]interface{}{
+				"text": data,
+			},
+		}
+		messageSegments = append(messageSegments, textSegment)
+	}
+	//排列
+	messageSegments = sortMessageSegments(messageSegments)
+	return messageSegments
+}
+
 // ConvertToInt64 尝试将 interface{} 类型的值转换为 int64 类型
 func ConvertToInt64(value interface{}) (int64, error) {
 	switch v := value.(type) {
