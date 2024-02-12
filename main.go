@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"encoding/base64"
 	"errors"
 	"flag"
 	"fmt"
@@ -31,6 +32,7 @@ import (
 	"github.com/hoshinonyaruko/gensokyo-wxmp/images"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/mylog"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/server"
+	"github.com/hoshinonyaruko/gensokyo-wxmp/silk"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/sys"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/template"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/url"
@@ -446,6 +448,8 @@ func textMsgHandler(ctx *core.Context) {
 		ctx.AESResponse(resp, 0, "", nil) // aes密文回复
 	}
 
+	//发送成功回执
+	handlers.SendResponse(wsClients, err, message)
 }
 
 func defaultMsgHandler(ctx *core.Context) {
@@ -484,9 +488,14 @@ func ProcessMessage(input string, clt *core.Client) (int, interface{}, error) {
 	httpUrlRecordPattern := regexp.MustCompile(`\[CQ:record,file=http://(.+?)\]`)
 	httpsUrlRecordPattern := regexp.MustCompile(`\[CQ:record,file=https://(.+?)\]`)
 
-	// 检查是否含有base64编码的图片或语音信息，这些先标记为TODO
+	// 检查是否含有base64编码的图片或语音信息
+	var err error
 	if base64ImagePattern.MatchString(input) || base64RecordPattern.MatchString(input) {
-		return 0, nil, errors.New("base64 media processing not supported yet")
+		input, err = processInput(input)
+		if err != nil {
+			log.Printf("processInput出错:\n%v\n", err)
+		}
+		log.Printf("处理后的base64编码的图片或语音信息:\n%v\n", input)
 	}
 
 	// 检查是否为纯文本信息
@@ -563,4 +572,59 @@ func ProcessMessage(input string, clt *core.Client) (int, interface{}, error) {
 
 	// 如果没有匹配到任何已知格式，返回错误
 	return 0, nil, errors.New("unknown message format")
+}
+
+// processInput 处理含有Base64编码的图片和语音信息的字符串
+func processInput(input string) (string, error) {
+	// 定义正则表达式
+	base64ImagePattern := regexp.MustCompile(`\[CQ:image,file=base64://(.+?)\]`)
+	base64RecordPattern := regexp.MustCompile(`\[CQ:record,file=base64://(.+?)\]`)
+
+	// 处理Base64编码的图片
+	input = processBase64Media(input, base64ImagePattern, images.UploadBase64ImageToServer, "image")
+
+	// 处理Base64编码的语音
+	input = processBase64Media(input, base64RecordPattern, images.UploadBase64RecordToServer, "record")
+
+	return input, nil
+}
+
+// processBase64Media 处理并替换Base64编码的媒体信息
+func processBase64Media(input string, pattern *regexp.Regexp, uploadFunc func(string) (string, error), mediaType string) string {
+	base64RecordPattern := regexp.MustCompile(`\[CQ:record,file=base64://(.+?)\]`)
+	matches := pattern.FindAllStringSubmatch(input, -1)
+	for _, match := range matches {
+		base64Data := match[1] // 获取Base64编码数据
+		decodedData, err := base64.StdEncoding.DecodeString(base64Data)
+		if err != nil {
+			mylog.Printf("Failed to decode base64 data: %v", err)
+			continue
+		}
+
+		// 特殊处理语音数据
+		if pattern == base64RecordPattern && !silk.IsAMRorSILK(decodedData) {
+			decodedData = silk.EncoderSilk(decodedData) // 假设这个函数进行了转码
+			mylog.Printf("Audio transcoding")
+		}
+
+		// 将解码的数据重新编码为Base64并上传
+		encodedData := base64.StdEncoding.EncodeToString(decodedData)
+		url, err := uploadFunc(encodedData)
+		if err != nil {
+			mylog.Printf("Failed to upload base64 data: %v", err)
+			continue
+		}
+		// 根据媒体类型构造替换格式
+		var cqFormat string
+		if mediaType == "image" {
+			cqFormat = `[CQ:image,file=%s]`
+		} else if mediaType == "record" {
+			cqFormat = `[CQ:record,file=%s]`
+		}
+
+		// 替换原始Base64编码信息为URL
+		input = strings.Replace(input, match[0], fmt.Sprintf(cqFormat, url), 1)
+
+	}
+	return input
 }
