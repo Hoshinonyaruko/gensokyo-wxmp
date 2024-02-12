@@ -201,6 +201,16 @@ func (client *WebSocketClient) recvMessage(msg []byte) {
 	mapMutex.Lock()
 	defer mapMutex.Unlock()
 
+	// 检查是否启用了双向Echo模式
+	twoWayEchoEnabled := config.GetTwoWayEcho()
+
+	if !twoWayEchoEnabled {
+		// 如果双向Echo未启用，所有消息都发送到通用通道
+		generalChan <- message
+		return // 早期返回，避免执行后续逻辑
+	}
+
+	// 如果双向Echo启用，根据echo的值处理消息
 	echoValue, ok := message.Echo.(string)
 	if !ok {
 		// 如果echo不是字符串，将消息发送到通用通道
@@ -209,6 +219,7 @@ func (client *WebSocketClient) recvMessage(msg []byte) {
 		if ch, ok := echoToChanMap[echoValue]; ok {
 			// 如果找到匹配的信道，则发送消息
 			ch <- message
+			// 从映射中移除已处理的echo
 			delete(echoToChanMap, echoValue)
 		}
 	}
