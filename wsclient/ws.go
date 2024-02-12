@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -135,12 +137,17 @@ func (client *WebSocketClient) Reconnect() {
 	}
 	// 复用现有的client完成重连
 	client.conn = conn
-
+	// 使用strconv.ParseUint将字符串转换为uint64
+	selfID, err := strconv.ParseUint(client.botID, 10, 64)
+	if err != nil {
+		log.Printf("Error converting botID to uint64: %v", err)
+		// 在这里处理错误，例如返回或设置selfID为默认值
+	}
 	// 再次发送元事件
 	message := map[string]interface{}{
 		"meta_event_type": "lifecycle",
 		"post_type":       "meta_event",
-		"self_id":         client.botID,
+		"self_id":         selfID,
 		"sub_type":        "connect",
 		"time":            int(time.Now().Unix()),
 	}
@@ -200,6 +207,7 @@ func (client *WebSocketClient) recvMessage(msg []byte) {
 	if !strings.HasPrefix(message.Action, "send") {
 		// 如果不是以"send"开头，记录日志并返回
 		mylog.Printf("Action '%s' is not supported, ignored.", message.Action)
+		client.respondToAction(message.Action, message.Echo)
 		return
 	}
 
@@ -283,11 +291,17 @@ func (client *WebSocketClient) sendHeartbeat(ctx context.Context, botID string, 
 		case <-ctx.Done():
 			return
 		case <-time.After(time.Duration(heartbeatinterval) * time.Second):
+			// 使用strconv.ParseUint将字符串转换为uint64
+			selfID, err := strconv.ParseUint(botID, 10, 64)
+			if err != nil {
+				log.Printf("Error converting botID to uint64: %v", err)
+				// 在这里处理错误，例如返回或设置selfID为默认值
+			}
 			message := map[string]interface{}{
 				"post_type":       "meta_event",
 				"meta_event_type": "heartbeat",
 				"time":            int(time.Now().Unix()),
-				"self_id":         botID,
+				"self_id":         selfID,
 				"status": map[string]interface{}{
 					"app_enabled":     true,
 					"app_good":        true,
@@ -376,11 +390,18 @@ func NewWebSocketClient(urlStr string, botID string, maxRetryAttempts int) (*Web
 		sendFailures: []map[string]interface{}{},
 	}
 
+	// 使用strconv.ParseUint将字符串转换为uint64
+	selfID, err := strconv.ParseUint(botID, 10, 64)
+	if err != nil {
+		log.Printf("Error converting botID to uint64: %v", err)
+		// 在这里处理错误，例如返回或设置selfID为默认值
+	}
+
 	// Sending initial message similar to your setupB function
 	message := map[string]interface{}{
 		"meta_event_type": "lifecycle",
 		"post_type":       "meta_event",
-		"self_id":         botID,
+		"self_id":         selfID,
 		"sub_type":        "connect",
 		"time":            int(time.Now().Unix()),
 	}
@@ -428,4 +449,154 @@ func getParamsFromURI(uriStr string) map[string]string {
 	}
 
 	return params
+}
+
+// respondToAction 根据action类型构造并发送响应消息
+func (client *WebSocketClient) respondToAction(action string, echo interface{}) {
+	var response map[string]interface{}
+
+	switch action {
+	case "get_group_list":
+		response = make(map[string]interface{})
+		data := make([]map[string]interface{}, 1) // 示例仅创建一个元素的数组
+		for i := range data {
+			data[i] = map[string]interface{}{
+				"group_create_time": "0",
+				"group_id":          "868858989",
+				"group_level":       "0",
+				"group_memo":        "",
+				"group_name":        "可爱red",
+				"max_member_count":  "3000",
+				"member_count":      "1800",
+			}
+		}
+		response["data"] = data
+		response["message"] = ""
+		response["retcode"] = 0
+		response["status"] = "ok"
+		response["echo"] = echo
+
+	case "get_login_info":
+		wxappid := config.GetWxAppId()
+		wxappidintStr := config.ExtractAndTruncateDigits(wxappid)
+		// 将字符串转换为int
+		wxappidint, err := strconv.Atoi(wxappidintStr)
+		if err != nil {
+			// 处理可能的错误
+			mylog.Printf("Error converting wxappidint to int: %v", err)
+			return
+		}
+		response = map[string]interface{}{
+			"data": map[string]interface{}{
+				"nickname": "早苗",
+				"user_id":  wxappidint,
+			},
+			"message": "",
+			"retcode": 0,
+			"status":  "ok",
+			"echo":    echo,
+		}
+
+	case "get_guild_service_profile":
+		response = map[string]interface{}{
+			"data": map[string]interface{}{
+				"nickname": "",
+				"tiny_id":  0,
+			},
+			"message": "",
+			"retcode": 0,
+			"status":  "ok",
+			"echo":    echo,
+		}
+
+	case "get_online_clients":
+		response = map[string]interface{}{
+			"data": map[string]interface{}{
+				"clients": []interface{}{}, // 创建一个空的clients数组
+				"tiny_id": 0,
+			},
+			"message": "",
+			"retcode": 0,
+			"status":  "ok",
+			"echo":    echo,
+			"clients": []interface{}{}, // 根据描述，这可能是多余的，除非您有特定需求
+		}
+
+	case "get_version_info":
+		response = map[string]interface{}{
+			"data": map[string]interface{}{
+				"app_full_name":              "go-cqhttp-v1.0.0_windows_amd64-go1.20.2",
+				"app_name":                   "go-cqhttp",
+				"app_version":                "v1.0.0",
+				"coolq_directory":            "",
+				"coolq_edition":              "pro",
+				"go-cqhttp":                  true,
+				"plugin_build_configuration": "release",
+				"plugin_build_number":        99,
+				"plugin_version":             "4.15.0",
+				"protocol_name":              4,
+				"protocol_version":           "v11",
+				"runtime_os":                 "windows",
+				"runtime_version":            "go1.20.2",
+				"version":                    "v1.0.0",
+			},
+			"message": "",
+			"retcode": 0,
+			"status":  "ok",
+			"echo":    echo,
+		}
+
+	case "get_friend_list":
+		friends := []map[string]interface{}{
+			{"nickname": "小狐狸", "remark": "", "user_id": "2022717137"},
+			// 添加更多好友信息...
+		}
+		response = map[string]interface{}{
+			"data":    friends,
+			"message": "",
+			"retcode": 0,
+			"status":  "ok",
+			"echo":    echo,
+		}
+
+	case "get_guild_list":
+		data := []map[string]interface{}{}
+		// 假设我们要添加一个示例公会信息，实际应用中这部分可能需要从数据库或其他数据源动态获取
+		for i := 0; i < 1; i++ { // 示例仅添加一个公会
+			data = append(data, map[string]interface{}{
+				"guild_id":         "0",         // 公会ID示例值
+				"guild_name":       "868858989", // 公会名称示例值
+				"guild_display_id": "868858989", // 公会显示ID示例值
+			})
+		}
+		response = map[string]interface{}{
+			"data":    data,
+			"message": "",
+			"retcode": 0,
+			"status":  "ok",
+			"echo":    echo,
+		}
+
+	case "get_guild_channel_list":
+		// 这里示例不具体填充data数组中的频道信息，假设响应需要的是一个空的频道列表
+		response = map[string]interface{}{
+			"data":    []interface{}{}, // 创建一个空的频道列表
+			"message": "",
+			"retcode": 0,
+			"status":  "ok",
+			"echo":    echo,
+		}
+
+	default:
+		mylog.Printf("Action '%s' is not supported, ignored.", action)
+		return
+	}
+
+	err := client.SendMessage(response)
+	if err != nil {
+		mylog.Println("Error sending message:", err)
+		return
+	}
+
+	mylog.Printf("Responded to action '%s' with: %v", action, response)
 }
