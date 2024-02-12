@@ -26,6 +26,7 @@ import (
 	"github.com/hoshinonyaruko/gensokyo-wxmp/Processor"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/callapi"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/config"
+	"github.com/hoshinonyaruko/gensokyo-wxmp/handlers"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/idmap"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/images"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/mylog"
@@ -401,7 +402,14 @@ func textMsgHandler(ctx *core.Context) {
 		}
 	}
 
-	strmessage := message.Params.Message.(string)
+	var strmessage string
+	// 尝试将message.Params.Message断言为string类型
+	if msgStr, ok := message.Params.Message.(string); ok {
+		strmessage = msgStr
+	} else {
+		// 如果不是string，调用parseMessage函数处理
+		strmessage = handlers.ParseMessageContent(message.Params.Message)
+	}
 	// 调用信息处理函数
 	messageType, result, err := ProcessMessage(strmessage, wechatClient)
 	if err != nil {
