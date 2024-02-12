@@ -72,7 +72,7 @@ gensokyo兼容 [OneBot-v11](https://github.com/botuniverse/onebot-11) ，并在�
 
 ### 接口
 
-由于本项目是由gensokyo-qqapi转换迁移而来，目前尚不完善，仅支持反向ws方式连接Onebotv11机器人应用.
+由于本项目是由gensokyo-qqapi转换迁移而来，目前已经支持nb2\yunzai\早苗\koishi等框架的图文收发，仅支持反向ws方式连接Onebotv11机器人应用.
 
 - [] HTTP API
 - [] 反向 HTTP POST
