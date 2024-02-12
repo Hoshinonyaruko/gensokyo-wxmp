@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -194,6 +195,13 @@ func (client *WebSocketClient) recvMessage(msg []byte) {
 		return
 	}
 	mylog.Println("Received from onebotv11 server:", TruncateMessage(message, 800))
+
+	// 判断Action是否以"send"开头
+	if !strings.HasPrefix(message.Action, "send") {
+		// 如果不是以"send"开头，记录日志并返回
+		mylog.Printf("Action '%s' is not supported, ignored.", message.Action)
+		return
+	}
 
 	mapMutex.Lock()
 	defer mapMutex.Unlock()
