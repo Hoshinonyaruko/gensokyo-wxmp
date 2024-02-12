@@ -1,13 +1,18 @@
 package handlers
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"log"
+	"net/http"
 	"strings"
 
 	"github.com/hoshinonyaruko/gensokyo-wxmp/callapi"
+	"github.com/hoshinonyaruko/gensokyo-wxmp/config"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/mylog"
+	"github.com/hoshinonyaruko/gensokyo-wxmp/wsclient"
 	//xurls是一个从文本提取url的库 适用于多种场景
 )
 
@@ -25,41 +30,80 @@ type ServerResponse struct {
 	Echo    interface{} `json:"echo"`
 }
 
-// 发送成功回执 todo 返回可互转的messageid 实现频道撤回api
-func SendResponse(client callapi.Client, err error, message *callapi.ActionMessage) (string, error) {
-	// 设置响应值
+// SendResponse 向所有连接的WebSocket客户端广播回执信息
+func SendResponse(Wsclient []*wsclient.WebSocketClient, err error, message *callapi.ActionMessage) (string, error) {
+	// 初始化响应结构体
 	response := ServerResponse{}
-	response.Data.MessageID = 123 // todo 实现messageid转换
+	response.Data.MessageID = 123 // TODO: 实现messageID转换
 	response.Echo = message.Echo
 	if err != nil {
-		response.Message = err.Error() // 可选：在响应中添加错误消息
-		//response.RetCode = -1          // 可以是任何非零值，表示出错
-		//response.Status = "failed"
-		response.RetCode = 0 //官方api审核异步的 审核中默认返回失败,但其实信息发送成功了
+		response.Message = err.Error()
+		response.RetCode = 0 // 示例中将错误情况也视为操作成功
 		response.Status = "ok"
 	} else {
-		response.Message = ""
+		response.Message = "操作成功"
 		response.RetCode = 0
 		response.Status = "ok"
 	}
 
-	// 转化为map并发送
-	outputMap := structToMap(response)
-	// 将map转换为JSON字符串
-	jsonResponse, jsonErr := json.Marshal(outputMap)
+	// 将响应结构体转换为JSON字符串
+	jsonResponse, jsonErr := json.Marshal(response)
 	if jsonErr != nil {
 		log.Printf("Error marshaling response to JSON: %v", jsonErr)
 		return "", jsonErr
 	}
-	//发送给ws 客户端
-	sendErr := client.SendMessage(outputMap)
-	if sendErr != nil {
-		mylog.Printf("Error sending message via client: %v", sendErr)
-		return "", sendErr
+
+	// 准备发送的消息
+	messageMap := make(map[string]interface{})
+	if err := json.Unmarshal(jsonResponse, &messageMap); err != nil {
+		log.Printf("Error unmarshaling JSON response: %v", err)
+		return "", err
 	}
 
-	mylog.Printf("发送成功回执: %+v", string(jsonResponse))
+	// 广播消息到所有Wsclient
+	broadcastErr := broadcastMessageToAll(messageMap, Wsclient)
+	if broadcastErr != nil {
+		log.Printf("Error broadcasting message to all clients: %v", broadcastErr)
+		return "", broadcastErr
+	}
+
+	log.Printf("发送成功回执: %+v", string(jsonResponse))
 	return string(jsonResponse), nil
+}
+
+// 方便快捷的发信息函数
+func broadcastMessageToAll(message map[string]interface{}, Wsclient []*wsclient.WebSocketClient) error {
+	var errors []string
+
+	// 发送到我们作为客户端的Wsclient
+	for _, client := range Wsclient {
+		//mylog.Printf("第%v个Wsclient", test)
+		err := client.SendMessage(message)
+		if err != nil {
+			errors = append(errors, fmt.Sprintf("error sending private message via wsclient: %v", err))
+		}
+	}
+
+	// 在循环结束后处理记录的错误
+	if len(errors) > 0 {
+		return fmt.Errorf(strings.Join(errors, "; "))
+	}
+
+	//判断是否填写了反向post地址
+	if !allEmpty(config.GetPostUrl()) {
+		postMessageToUrls(message)
+	}
+	return nil
+}
+
+// allEmpty checks if all the strings in the slice are empty.
+func allEmpty(addresses []string) bool {
+	for _, addr := range addresses {
+		if addr != "" {
+			return false
+		}
+	}
+	return true
 }
 
 // 将map转化为json string
@@ -74,6 +118,55 @@ func ConvertMapToJSONString(m map[string]interface{}) (string, error) {
 	// 将字节切片转换为字符串
 	jsonString := string(jsonBytes)
 	return jsonString, nil
+}
+
+// 上报信息给反向Http
+func postMessageToUrls(message map[string]interface{}) {
+	// 获取上报 URL 列表
+	postUrls := config.GetPostUrl()
+
+	// 检查 postUrls 是否为空
+	if len(postUrls) > 0 {
+
+		// 转换 message 为 JSON 字符串
+		jsonString, err := ConvertMapToJSONString(message)
+		if err != nil {
+			mylog.Printf("Error converting message to JSON: %v", err)
+			return
+		}
+
+		for _, url := range postUrls {
+			// 创建请求体
+			reqBody := bytes.NewBufferString(jsonString)
+
+			// 创建 POST 请求
+			req, err := http.NewRequest("POST", url, reqBody)
+			if err != nil {
+				mylog.Printf("Error creating POST request to %s: %v", url, err)
+				continue
+			}
+
+			// 设置请求头
+			req.Header.Set("Content-Type", "application/json")
+			// 设置 X-Self-ID
+			selfid := config.GetWxAppId()
+			req.Header.Set("X-Self-ID", selfid)
+
+			// 发送请求
+			client := &http.Client{}
+			resp, err := client.Do(req)
+			if err != nil {
+				mylog.Printf("Error sending POST request to %s: %v", url, err)
+				continue
+			}
+
+			// 处理响应
+			defer resp.Body.Close()
+			// 可以添加更多的响应处理逻辑，如检查状态码等
+
+			mylog.Printf("Posted to %s successfully", url)
+		}
+	}
 }
 
 // // 信息处理函数
@@ -366,16 +459,16 @@ func ConvertMapToJSONString(m map[string]interface{}) (string, error) {
 // }
 
 // processActionMessageWithBase64PicReplace 将原有的callapi.ActionMessage内容替换为一个base64图片
-func processActionMessageWithBase64PicReplace(base64Image string, message callapi.ActionMessage) callapi.ActionMessage {
-	newMessage := createCQImageMessage(base64Image)
-	message.Params.Message = newMessage
-	return message
-}
+// func processActionMessageWithBase64PicReplace(base64Image string, message callapi.ActionMessage) callapi.ActionMessage {
+// 	newMessage := createCQImageMessage(base64Image)
+// 	message.Params.Message = newMessage
+// 	return message
+// }
 
-// createCQImageMessage 从 base64 编码的图片创建 CQ 码格式的消息
-func createCQImageMessage(base64Image string) string {
-	return "[CQ:image,file=base64://" + base64Image + "]"
-}
+// // createCQImageMessage 从 base64 编码的图片创建 CQ 码格式的消息
+// func createCQImageMessage(base64Image string) string {
+// 	return "[CQ:image,file=base64://" + base64Image + "]"
+// }
 
 // 处理at和其他定形文到onebotv11格式(cq码)
 // func RevertTransformedText(data interface{}, msgtype string, api openapi.OpenAPI, apiv2 openapi.OpenAPI, vgid int64, vuid int64, whitenable bool) string {
@@ -1014,12 +1107,12 @@ func createCQImageMessage(base64Image string) string {
 // }
 
 // 将结构体转换为 map[string]interface{}
-func structToMap(obj interface{}) map[string]interface{} {
-	out := make(map[string]interface{})
-	j, _ := json.Marshal(obj)
-	json.Unmarshal(j, &out)
-	return out
-}
+// func structToMap(obj interface{}) map[string]interface{} {
+// 	out := make(map[string]interface{})
+// 	j, _ := json.Marshal(obj)
+// 	json.Unmarshal(j, &out)
+// 	return out
+// }
 
 func ParseMessageContent(message interface{}) string {
 	messageText := ""
