@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/hoshinonyaruko/gensokyo-wxmp/callapi"
@@ -801,59 +802,25 @@ func postMessageToUrls(message map[string]interface{}) {
 // 	return messageText
 // }
 
-// // 将收到的data.content转换为message segment todo,群场景不支持受图片,频道场景的图片可以拼一下
-// func ConvertToSegmentedMessage(data interface{}) []map[string]interface{} {
-// 	// 强制类型转换，获取Message结构
-// 	var msg *dto.Message
-// 	var menumsg bool
-// 	switch v := data.(type) {
-// 	case *dto.WSGroupATMessageData:
-// 		msg = (*dto.Message)(v)
-// 	case *dto.WSATMessageData:
-// 		msg = (*dto.Message)(v)
-// 	case *dto.WSMessageData:
-// 		msg = (*dto.Message)(v)
-// 	case *dto.WSDirectMessageData:
-// 		msg = (*dto.Message)(v)
-// 	case *dto.WSC2CMessageData:
-// 		msg = (*dto.Message)(v)
-// 	default:
-// 		return nil
-// 	}
-// 	menumsg = false
-// 	//单独一个空格的信息的空格用户并不希望去掉
-// 	if msg.Content == " " {
-// 		menumsg = true
-// 	}
-// 	var messageSegments []map[string]interface{}
+// 将收到的data.content转换为message segment todo,群场景不支持受图片,频道场景的图片可以拼一下
+func ConvertToSegmentedMessage(data string) []map[string]interface{} {
 
-// 	// 处理Attachments字段来构建图片消息
-// 	for _, attachment := range msg.Attachments {
-// 		imageFileMD5 := attachment.FileName
-// 		for _, ext := range []string{"{", "}", ".png", ".jpg", ".gif", "-"} {
-// 			imageFileMD5 = strings.ReplaceAll(imageFileMD5, ext, "")
-// 		}
-// 		imageSegment := map[string]interface{}{
-// 			"type": "image",
-// 			"data": map[string]interface{}{
-// 				"file":    imageFileMD5 + ".image",
-// 				"subType": "0",
-// 				"url":     attachment.URL,
-// 			},
-// 		}
-// 		messageSegments = append(messageSegments, imageSegment)
+	var messageSegments []map[string]interface{}
 
-// 		// 在msg.Content中替换旧的图片链接
-// 		//newImagePattern := "[CQ:image,file=" + attachment.URL + "]"
-// 		//msg.Content = msg.Content + newImagePattern
-// 	}
-// 	// 将msg.Content里的BotID替换成AppID
-// 	msg.Content = strings.ReplaceAll(msg.Content, BotID, AppID)
-// 	// 使用正则表达式查找所有的[@数字]格式
-// 	r := regexp.MustCompile(`<@!(\d+)>`)
-// 	atMatches := r.FindAllStringSubmatch(msg.Content, -1)
-// 	for _, match := range atMatches {
-// 		userID := match[1]
+	// 内容被视为文本部分
+	if data != "" {
+		textSegment := map[string]interface{}{
+			"type": "text",
+			"data": map[string]interface{}{
+				"text": data,
+			},
+		}
+		messageSegments = append(messageSegments, textSegment)
+	}
+	//排列
+	messageSegments = sortMessageSegments(messageSegments)
+	return messageSegments
+}
 
 // 		if userID == AppID {
 // 			if config.GetRemoveAt() {
@@ -907,61 +874,54 @@ func postMessageToUrls(message map[string]interface{}) {
 // 		}
 // 	}
 
-// 	// 检查是否需要移除前缀
-// 	if config.GetRemovePrefixValue() {
-// 		// 移除消息内容中第一次出现的 "/"
-// 		if idx := strings.Index(msg.Content, "/"); idx != -1 {
-// 			msg.Content = msg.Content[:idx] + msg.Content[idx+1:]
-// 		}
-// 	}
-// 	// 如果还有其他内容，那么这些内容被视为文本部分
-// 	if msg.Content != "" {
-// 		textSegment := map[string]interface{}{
-// 			"type": "text",
-// 			"data": map[string]interface{}{
-// 				"text": msg.Content,
-// 			},
-// 		}
-// 		messageSegments = append(messageSegments, textSegment)
-// 	}
-// 	//排列
-// 	messageSegments = sortMessageSegments(messageSegments)
-// 	return messageSegments
-// }
+	// 内容被视为文本部分
+	if data != "" {
+		textSegment := map[string]interface{}{
+			"type": "text",
+			"data": map[string]interface{}{
+				"text": data,
+			},
+		}
+		messageSegments = append(messageSegments, textSegment)
+	}
+	//排列
+	messageSegments = sortMessageSegments(messageSegments)
+	return messageSegments
+}
 
-// // ConvertToInt64 尝试将 interface{} 类型的值转换为 int64 类型
-// func ConvertToInt64(value interface{}) (int64, error) {
-// 	switch v := value.(type) {
-// 	case int:
-// 		return int64(v), nil
-// 	case int64:
-// 		return v, nil
-// 	case string:
-// 		return strconv.ParseInt(v, 10, 64)
-// 	default:
-// 		// 当无法处理该类型时返回错误
-// 		return 0, fmt.Errorf("无法将类型 %T 转换为 int64", value)
-// 	}
-// }
+// ConvertToInt64 尝试将 interface{} 类型的值转换为 int64 类型
+func ConvertToInt64(value interface{}) (int64, error) {
+	switch v := value.(type) {
+	case int:
+		return int64(v), nil
+	case int64:
+		return v, nil
+	case string:
+		return strconv.ParseInt(v, 10, 64)
+	default:
+		// 当无法处理该类型时返回错误
+		return 0, fmt.Errorf("无法将类型 %T 转换为 int64", value)
+	}
+}
 
-// // 排列MessageSegments
-// func sortMessageSegments(segments []map[string]interface{}) []map[string]interface{} {
-// 	var atSegments, textSegments, imageSegments []map[string]interface{}
+// 排列MessageSegments
+func sortMessageSegments(segments []map[string]interface{}) []map[string]interface{} {
+	var atSegments, textSegments, imageSegments []map[string]interface{}
 
-// 	for _, segment := range segments {
-// 		switch segment["type"] {
-// 		case "at":
-// 			atSegments = append(atSegments, segment)
-// 		case "text":
-// 			textSegments = append(textSegments, segment)
-// 		case "image":
-// 			imageSegments = append(imageSegments, segment)
-// 		}
-// 	}
+	for _, segment := range segments {
+		switch segment["type"] {
+		case "at":
+			atSegments = append(atSegments, segment)
+		case "text":
+			textSegments = append(textSegments, segment)
+		case "image":
+			imageSegments = append(imageSegments, segment)
+		}
+	}
 
-// 	// 按照指定的顺序合并这些切片
-// 	return append(append(atSegments, textSegments...), imageSegments...)
-// }
+	// 按照指定的顺序合并这些切片
+	return append(append(atSegments, textSegments...), imageSegments...)
+}
 
 // // SendMessage 发送消息根据不同的类型
 // func SendMessage(messageText string, data interface{}, messageType string, api openapi.OpenAPI, apiv2 openapi.OpenAPI) error {
