@@ -14,6 +14,7 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -39,6 +40,9 @@ import (
 	"github.com/hoshinonyaruko/gensokyo-wxmp/webui"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/wsclient"
 )
+
+var msgIdToEchoMap = make(map[int64]string)
+var msgIdToEchoMapMutex = &sync.Mutex{}
 
 var wsClients []*wsclient.WebSocketClient
 
@@ -367,28 +371,40 @@ func allEmpty(addresses []string) bool {
 }
 
 func textMsgHandler(ctx *core.Context) {
+	var err error
 	log.Printf("收到文本消息:\n%s\n", ctx.MsgPlaintext)
 	// 解析信息
 	msg := request.GetText(ctx.MixedMsg)
 
-	// true是群
-	var echo string
-	var err error
-	if config.GetGlobalGroupOrPrivate() {
-		echo, err = Processor.ProcessGroupMessage(ctx, wsClients)
-		if err != nil {
-			log.Printf("处理信息出错:\n%v\n", err)
+	msgIdToEchoMapMutex.Lock()
+	echo, exists := msgIdToEchoMap[msg.MsgId]
+	msgIdToEchoMapMutex.Unlock()
+
+	// 如果msgId不存在，则处理消息
+	if !exists {
+		// 根据配置调用相应的处理函数
+		if config.GetGlobalGroupOrPrivate() {
+			echo, err = Processor.ProcessGroupMessage(ctx, wsClients)
+			if err != nil {
+				log.Printf("处理信息出错:\n%v\n", err)
+			}
+		} else {
+			echo, err = Processor.ProcessC2CMessage(ctx, wsClients)
+			if err != nil {
+				log.Printf("处理信息出错:\n%v\n", err)
+			}
 		}
-	} else {
-		echo, err = Processor.ProcessC2CMessage(ctx, wsClients)
-		if err != nil {
-			log.Printf("处理信息出错:\n%v\n", err)
-		}
+
+		// 存储msgId和echo的映射关系
+		msgIdToEchoMapMutex.Lock()
+		msgIdToEchoMap[msg.MsgId] = echo
+		msgIdToEchoMapMutex.Unlock()
 	}
 	var message *callapi.ActionMessage
+	timeout := config.GetTimeOut()
 	if config.GetTwoWayEcho() {
 		// 发送消息给WS接口...
-		message, err = wsclient.WaitForActionMessage(echo, 5*time.Second) // 假设5秒超时
+		message, err = wsclient.WaitForActionMessage(echo, time.Duration(timeout)*time.Second) // 超时时间可以自定义
 		if err != nil {
 			log.Printf("Error waiting for action message: %v", err)
 			// 处理错误，比如发送默认回复或记录日志
@@ -396,7 +412,7 @@ func textMsgHandler(ctx *core.Context) {
 		}
 	} else {
 		// 发送消息给WS接口...
-		message, err = wsclient.WaitForGeneralMessage(5 * time.Second) // 假设5秒超时
+		message, err = wsclient.WaitForGeneralMessage(time.Duration(timeout) * time.Second) // 超时时间可以自定义
 		if err != nil {
 			log.Printf("Error waiting for action message: %v", err)
 			// 处理错误，比如发送默认回复或记录日志
@@ -500,7 +516,13 @@ func ProcessMessage(input string, clt *core.Client) (int, interface{}, error) {
 
 	// 检查是否为纯文本信息
 	if !httpUrlImagePattern.MatchString(input) && !httpsUrlImagePattern.MatchString(input) && !httpUrlRecordPattern.MatchString(input) && !httpsUrlRecordPattern.MatchString(input) {
-		return 1, input, nil // 纯文本信息
+		// 使用正则表达式匹配并替换[CQ:at,qq=x]格式的信息
+		cqAtPattern := regexp.MustCompile(`\[CQ:at,qq=\d+\]`)
+		// 将匹配到的部分替换为空字符串
+		filteredInput := cqAtPattern.ReplaceAllString(input, "")
+
+		// 返回过滤后的纯文本信息
+		return 1, filteredInput, nil
 	}
 
 	// 图片信息处理
@@ -562,8 +584,9 @@ func ProcessMessage(input string, clt *core.Client) (int, interface{}, error) {
 
 		// 如果找到了语音URL
 		if recordUrl != "" {
-			mediaId, err := images.ProcessInput(recordUrl, clt, "amr") // 确保ProcessInput可以处理语音URL
+			mediaId, err := images.ProcessInput(recordUrl, clt, "mp3") // 确保ProcessInput可以处理语音URL
 			if err != nil {
+				mylog.Printf("Failed to ProcessInput record data[%v]: %v", recordUrl, err)
 				return 0, nil, err
 			}
 			return 3, mediaId, nil // 纯语音信息
@@ -591,7 +614,6 @@ func processInput(input string) (string, error) {
 
 // processBase64Media 处理并替换Base64编码的媒体信息
 func processBase64Media(input string, pattern *regexp.Regexp, uploadFunc func(string) (string, error), mediaType string) string {
-	base64RecordPattern := regexp.MustCompile(`\[CQ:record,file=base64://(.+?)\]`)
 	matches := pattern.FindAllStringSubmatch(input, -1)
 	for _, match := range matches {
 		base64Data := match[1] // 获取Base64编码数据
@@ -602,9 +624,12 @@ func processBase64Media(input string, pattern *regexp.Regexp, uploadFunc func(st
 		}
 
 		// 特殊处理语音数据
-		if pattern == base64RecordPattern && !silk.IsAMRorSILK(decodedData) {
-			decodedData = silk.EncoderSilk(decodedData) // 假设这个函数进行了转码
+		if mediaType == "record" && !silk.IsAMRorSILK(decodedData) {
+			decodedData = silk.EncoderSilk(decodedData)
 			mylog.Printf("Audio transcoding")
+			//mylog.Printf("不是amr格式但是不转码.")
+		} else {
+			mylog.Printf("pic or amr")
 		}
 
 		// 将解码的数据重新编码为Base64并上传

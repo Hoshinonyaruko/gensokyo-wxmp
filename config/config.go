@@ -38,6 +38,7 @@ type Settings struct {
 	WxOriId         string   `yaml:"wxOriId"`
 	WxToken         string   `yaml:"wxToken"`
 	WxEncodedAESKey string   `yaml:"wxEncodedAESKey"`
+	TimeOut         int      `yaml:"timeOut"`
 
 	GlobalGroupOrPrivate bool     `yaml:"global_group_or_private"`
 	Array                bool     `yaml:"array"`
@@ -75,11 +76,10 @@ type Settings struct {
 	BindPrefix string `yaml:"bind_prefix"`
 	MePrefix   string `yaml:"me_prefix"`
 
-	ImageLimitB      int    `yaml:"image_limit"`
-	RecordSampleRate int    `yaml:"record_sampleRate"`
-	RecordBitRate    int    `yaml:"record_bitRate"`
-	NoWhiteResponse  string `yaml:"No_White_Response"`
-	SendError        bool   `yaml:"send_error"`
+	ImageLimitB     int    `yaml:"image_limit"`
+	RecordBitRate   string `yaml:"record_bitRate"`
+	NoWhiteResponse string `yaml:"No_White_Response"`
+	SendError       bool   `yaml:"send_error"`
 
 	LotusPassword string `yaml:"lotus_password"`
 	WsServerPath  string `yaml:"ws_server_path"`
@@ -847,27 +847,14 @@ func GetImageLimitB() int {
 	return instance.Settings.ImageLimitB
 }
 
-// GetRecordSampleRate 返回 RecordSampleRate的值
-func GetRecordSampleRate() int {
-	mu.Lock()
-	defer mu.Unlock()
-
-	if instance == nil {
-		mylog.Println("Warning: instance is nil when trying to GetRecordSampleRate value.")
-		return 0 // 或者返回一个默认的 ImageLimit 值
-	}
-
-	return instance.Settings.RecordSampleRate
-}
-
 // GetRecordBitRate 返回 RecordBitRate
-func GetRecordBitRate() int {
+func GetRecordBitRate() string {
 	mu.Lock()
 	defer mu.Unlock()
 
 	if instance == nil {
 		mylog.Println("Warning: instance is nil when trying to GetRecordBitRate value.")
-		return 0 // 或者返回一个默认的 ImageLimit 值
+		return "128k" // 或者返回一个默认的 ImageLimit 值
 	}
 
 	return instance.Settings.RecordBitRate
@@ -1605,4 +1592,16 @@ func ExtractAndTruncateDigits(input string) string {
 
 	// 如果不超过10位，直接返回结果
 	return allDigits
+}
+
+// GetTimeOut
+func GetTimeOut() int {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to TimeOut value.")
+		return 200
+	}
+	return instance.Settings.TimeOut
 }
