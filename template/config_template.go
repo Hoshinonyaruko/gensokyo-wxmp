@@ -12,6 +12,8 @@ settings:
   wxEncodedAESKey: "<YOUR_CLIENT_SECRET>"              # 可选; aes加密解密key, 43字节长(base64编码, 去掉了尾部的'='), 安全模式必须设置;
   wxOriId: ""                                          # 可选; 公众号的原始ID(微信公众号管理后台查看), 如果设置了值则该Server只能处理 ToUserName 为该值的公众号的消息(事件);
 
+  timeOut : 5                                           # 等待反向ws信息超时时间,默认5秒
+
   global_group_or_private: true                      # 公众号收到的是群聊信息还是私聊 默认true=群
   array: false                                       # 连接trss云崽请开启array
   hash_id : false                                    # 使用hash来进行idmaps转换,可以让user_id不是123开始的递增值
@@ -30,8 +32,7 @@ settings:
   image_sizelimit : 0               #代表kb 腾讯api要求图片1500ms完成传输 如果图片发不出 请提升上行或设置此值 默认为0 不压缩
   image_limit : 100                 #每分钟上传的最大图片数量,可自行增加
   master_id : ["1","2"]             #群场景尚未开放获取管理员和列表能力,手动从日志中获取需要设置为管理,的user_id并填入(适用插件有权限判断场景)
-  record_sampleRate : 24000         #语音文件的采样率 最高48000 默认24000 单位Khz
-  record_bitRate : 24000            #语音文件的比特率 默认25000 代表 25 kbps 最高无限 请根据带宽 您发送的实际码率调整
+  record_bitRate : "128k"           #语音文件的比特率 128kbps
   card_nick : ""                    #默认为空,连接mirai-overflow时,请设置为非空,这里是机器人对用户称谓,为空为插件获取,mirai不支持
   
   reconnect_times : 100             #反向ws连接失败后的重试次数,希望一直重试,可设置9999

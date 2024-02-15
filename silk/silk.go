@@ -13,10 +13,8 @@ import (
 	"os/exec"
 	"path"
 	"runtime"
-	"strconv"
 	"strings"
 
-	"github.com/hoshinonyaruko/gensokyo-wxmp/config"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/mylog"
 )
 
@@ -144,7 +142,7 @@ func encode(record []byte, tempName string) (silkWav []byte) {
 		fmt.Printf("创建语音缓存目录失败：%v\n", err)
 	}
 	// 1. 写入缓存文件
-	rawPath := path.Join(silkCachePath, tempName+".wav")
+	rawPath := path.Join(silkCachePath, tempName+".amr")
 	err = os.WriteFile(rawPath, record, os.ModePerm)
 	if err != nil {
 		mylog.Errorf("write temp file error")
@@ -153,20 +151,31 @@ func encode(record []byte, tempName string) (silkWav []byte) {
 	defer os.Remove(rawPath)
 
 	// 2.转换pcm
-	sampleRate := config.GetRecordSampleRate() // 获取采样率
-	bitRate := config.GetRecordBitRate()       // 获取比特率
-	mylog.Printf("sampleRate%v", sampleRate)
-	mylog.Printf("bitRate%v", bitRate)
 	pcmPath := path.Join(silkCachePath, tempName+".pcm")
-	cmd := exec.Command("ffmpeg", "-i", rawPath, "-f", "s16le", "-ar", strconv.Itoa(sampleRate), "-ac", "1", pcmPath)
-	if errors.Is(cmd.Err, exec.ErrDot) {
-		cmd.Err = nil
-	}
+	cmd := exec.Command("ffmpeg", "-i", rawPath, pcmPath) // 直接转换，不指定采样率和比特率
 	if err = cmd.Run(); err != nil {
-		mylog.Errorf("convert pcm file error")
+		mylog.Errorf("convert pcm file error: %v", err)
 		return nil
 	}
 	defer os.Remove(pcmPath)
+
+	// 3.转换PCM到MP3，不改变采样率和比特率
+	mp3Path := path.Join(silkCachePath, tempName+".mp3")
+	cmdMP3 := exec.Command("ffmpeg", "-i", pcmPath, mp3Path) // 直接转换为MP3
+	if err = cmdMP3.Run(); err != nil {
+		mylog.Errorf("convert to mp3 file error: %v", err)
+		return nil
+	}
+
+	// 转换完成，mp3Path包含了转换后的MP3文件路径
+	mylog.Printf("MP3 file created at: %s", mp3Path)
+
+	// 读取MP3文件
+	MP3, err := os.ReadFile(mp3Path)
+	if err != nil {
+		mylog.Errorf("read mp3 file error: %v", err)
+		return nil
+	}
 
 	//todo 有大佬可以试试完善go-silk 这部分编码转换
 	//努力了很久,都没成功播放
@@ -184,7 +193,7 @@ func encode(record []byte, tempName string) (silkWav []byte) {
 	// 	return nil
 	// }
 
-	silkPath := path.Join(silkCachePath, tempName+".silk")
+	//silkPath := path.Join(silkCachePath, tempName+".amr")
 
 	// err = os.WriteFile(silkPath, silkWav, 0o666)
 	// if err != nil {
@@ -194,65 +203,66 @@ func encode(record []byte, tempName string) (silkWav []byte) {
 
 	// 调用silk_codec转换为Silk
 
-	// 获取silk_codec文件名
-	codecFileName, err := getSilkCodecPath()
-	if err != nil {
-		mylog.Errorf("failed to get codec path: %v", err)
-		return nil
-	}
+	// // 获取silk_codec文件名
+	// codecFileName, err := getSilkCodecPath()
+	// if err != nil {
+	// 	mylog.Errorf("failed to get codec path: %v", err)
+	// 	return nil
+	// }
 
-	// 从嵌入的文件系统中读取silk_codec二进制文件
-	codecData, err := silkCodecs.ReadFile(codecFileName)
-	if err != nil {
-		mylog.Errorf("failed to read codec data: %v", err)
-		return nil
-	}
+	// // 从嵌入的文件系统中读取silk_codec二进制文件
+	// codecData, err := silkCodecs.ReadFile(codecFileName)
+	// if err != nil {
+	// 	mylog.Errorf("failed to read codec data: %v", err)
+	// 	return nil
+	// }
 
-	// 根据操作系统确定临时文件的扩展名
-	tempFilePattern := "silk_codec*"
-	if runtime.GOOS == "windows" {
-		tempFilePattern += ".exe"
-	}
+	// // 根据操作系统确定临时文件的扩展名
+	// tempFilePattern := "silk_codec*"
+	// if runtime.GOOS == "windows" {
+	// 	tempFilePattern += ".exe"
+	// }
 
-	// 创建临时文件
-	tmpFile, err := os.CreateTemp("", tempFilePattern)
-	if err != nil {
-		mylog.Errorf("failed to create temp file: %v", err)
-		return nil
-	}
-	defer os.Remove(tmpFile.Name()) // 清理临时文件
+	// // 创建临时文件
+	// tmpFile, err := os.CreateTemp("", tempFilePattern)
+	// if err != nil {
+	// 	mylog.Errorf("failed to create temp file: %v", err)
+	// 	return nil
+	// }
+	// defer os.Remove(tmpFile.Name()) // 清理临时文件
 
-	// 写入二进制数据到临时文件
-	if _, err := tmpFile.Write(codecData); err != nil {
-		mylog.Errorf("failed to write codec data to temp file: %v", err)
-		return nil
-	}
-	if err := tmpFile.Close(); err != nil {
-		mylog.Errorf("failed to close temp file: %v", err)
-		return nil
-	}
+	// // 写入二进制数据到临时文件
+	// if _, err := tmpFile.Write(codecData); err != nil {
+	// 	mylog.Errorf("failed to write codec data to temp file: %v", err)
+	// 	return nil
+	// }
+	// if err := tmpFile.Close(); err != nil {
+	// 	mylog.Errorf("failed to close temp file: %v", err)
+	// 	return nil
+	// }
 
-	// 确保临时文件可执行
-	if err := os.Chmod(tmpFile.Name(), 0700); err != nil {
-		mylog.Errorf("failed to chmod temp file: %v", err)
-		return nil
-	}
+	// // 确保临时文件可执行
+	// if err := os.Chmod(tmpFile.Name(), 0700); err != nil {
+	// 	mylog.Errorf("failed to chmod temp file: %v", err)
+	// 	return nil
+	// }
 
-	// 使用临时文件执行silk_codec
-	cmd = exec.Command(tmpFile.Name(), "pts", "-i", pcmPath, "-o", silkPath, "-s", strconv.Itoa(sampleRate))
-	if err := cmd.Run(); err != nil {
-		mylog.Errorf("silk encode error: %v", err)
-		return nil
-	}
+	// // 使用临时文件执行silk_codec
+	// cmd = exec.Command(tmpFile.Name(), "pts", "-i", pcmPath, "-o", silkPath, "-s", strconv.Itoa(sampleRate))
+	// if err := cmd.Run(); err != nil {
+	// 	mylog.Errorf("silk encode error: %v", err)
+	// 	return nil
+	// }
 
-	// 读取Silk文件
-	silkWav, err = os.ReadFile(silkPath)
-	if err != nil {
-		mylog.Errorf("read silk file error: %v", err)
-		return nil
-	}
+	// // 读取Silk文件
+	// silkWav, err = os.ReadFile(silkPath)
+	// if err != nil {
+	// 	mylog.Errorf("read silk file error: %v", err)
+	// 	return nil
+	// }
 
-	return silkWav
+	//return silkWav
+	return MP3
 }
 
 // IsAMRorSILK 判断给定文件是否为Amr或Silk格式

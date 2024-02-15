@@ -1,6 +1,7 @@
 package media
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -81,6 +82,7 @@ func uploadFromReader(clt *core.Client, mediaType, filename string, reader io.Re
 			Value:    reader,
 		},
 	}
+	fmt.Printf("filename:%v\n", fields[0].FileName)
 	var result struct {
 		core.Error
 		MediaInfo

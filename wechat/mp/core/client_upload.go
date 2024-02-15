@@ -88,6 +88,7 @@ func (clt *Client) PostMultipartForm(incompleteURL string, fields []MultipartFor
 	hasRetried := false
 RETRY:
 	finalURL := incompleteURL + url.QueryEscape(token)
+	fmt.Printf("accesstoken:%v", url.QueryEscape(token))
 	if err = httpPostMultipartForm(httpClient, finalURL, requestBodyType, requestBodyBytes, response); err != nil {
 		return
 	}

@@ -139,7 +139,7 @@ func UploadBase64RecordHandler(rateLimiter *RateLimiter) gin.HandlerFunc {
 			return
 		}
 
-		fileName := getFileMd5(RecordBytes) + ".silk"
+		fileName := getFileMd5(RecordBytes) + ".mp3"
 		directoryPath := "./channel_temp/"
 		savePath := directoryPath + fileName
 

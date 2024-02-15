@@ -15,6 +15,7 @@ import (
 	"github.com/chanxuehong/wechat/mp/core"
 	"github.com/chanxuehong/wechat/mp/media"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/config"
+	"github.com/hoshinonyaruko/gensokyo-wxmp/mylog"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/oss"
 )
 
@@ -210,7 +211,7 @@ func downloadFile(url string, filetype string) (string, error) {
 	defer resp.Body.Close()
 
 	// 创建临时文件
-	tmpFile, err := ioutil.TempFile("", "download_*."+filetype)
+	tmpFile, err := ioutil.TempFile("", "download*."+filetype)
 	if err != nil {
 		return "", err
 	}
@@ -232,7 +233,7 @@ func saveBase64ToTempFile(base64Str string, filetype string) (string, error) {
 		return "", err
 	}
 
-	tmpFile, err := ioutil.TempFile("", "base64_*."+filetype)
+	tmpFile, err := ioutil.TempFile("", "base64*."+filetype)
 	if err != nil {
 		return "", err
 	}
@@ -263,10 +264,18 @@ func ProcessInput(input string, clt *core.Client, filetype string) (string, erro
 		return "", err
 	}
 
-	// 假设upload函数正确实现，这里简化调用
-	info, err := media.UploadImage(clt, filepath)
-	if err != nil {
-		return "", err
+	var info *media.MediaInfo
+	if filetype == "mp3" {
+		info, err = media.UploadVoice(clt, filepath)
+		if err != nil {
+			mylog.Printf("mp3 path:%v", filepath)
+			return "", err
+		}
+	} else {
+		info, err = media.UploadImage(clt, filepath)
+		if err != nil {
+			return "", err
+		}
 	}
 
 	return info.MediaId, nil
