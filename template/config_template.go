@@ -12,7 +12,7 @@ settings:
   wxEncodedAESKey: "<YOUR_CLIENT_SECRET>"              # 可选; aes加密解密key, 43字节长(base64编码, 去掉了尾部的'='), 安全模式必须设置;
   wxOriId: ""                                          # 可选; 公众号的原始ID(微信公众号管理后台查看), 如果设置了值则该Server只能处理 ToUserName 为该值的公众号的消息(事件);
 
-  timeOut : 5                                           # 等待反向ws信息超时时间,默认5秒
+  timeOut : 4                                          # 等待反向ws信息超时时间,默认4秒,超过4秒微信服务端就不认了,你的服务端需要在4秒内返回结果.
 
   global_group_or_private: true                      # 公众号收到的是群聊信息还是私聊 默认true=群
   array: false                                       # 连接trss云崽请开启array
@@ -42,6 +42,8 @@ settings:
   ramdom_seq : false                #当多开gensokyo时,如果遇到群信息只能发出一条,请开启每个gsk的此项.(建议使用一个gsk连接多个应用)
   url_to_qrimage : false            #将信息中的url转换为二维码单独作为图片发出,需要同时设置  #SSL配置类 机器人发送URL设置 的 transfer_url 为 true visible_ip也需要为true
   qr_size : 200                     #二维码尺寸,单位像素
+  default_content : ["",""]         #微信公众号机器人是自由触发,当后端没有返回数据时,用户易流失,可设置多个随机的兜底回复,提示帮助指令,文档等.如果发不出,请减小timeOut的值
+  default_daily_reply_limit: 3      #设置0=关闭 每天对一位用户发送default_content的次数上限,发送太多默认回复容易让用户厌烦,尤其是老用户.
   
   oss_type : 0                      #请完善后方具体配置 完成#腾讯云配置...,0代表配置server dir port服务器自行上传(省钱),1,腾讯cos存储桶 2,百度oss存储桶 3,阿里oss存储桶
   self_introduce : ["",""]          #自我介绍,可设置多个随机发送,当不为空时,机器人被邀入群会发送自定义自我介绍 需手动添加新textintent   - "GroupAddRobotEventHandler"   - "GroupDelRobotEventHandler"
