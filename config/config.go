@@ -108,34 +108,36 @@ type Settings struct {
 	QrSize              int      `yaml:"qr_size"`
 	WhiteBypassRevers   bool     `yaml:"white_bypass_reverse"`
 
-	TencentBucketName     string   `yaml:"t_COS_BUCKETNAME"`
-	TencentBucketRegion   string   `yaml:"t_COS_REGION"`
-	TencentCosSecretid    string   `yaml:"t_COS_SECRETID"`
-	TencentSecretKey      string   `yaml:"t_COS_SECRETKEY"`
-	TencentAudit          bool     `yaml:"t_audit"`
-	OssType               int      `yaml:"oss_type"`
-	BaiduBOSBucketName    string   `yaml:"b_BOS_BUCKETNAME"`
-	BaiduBCEAK            string   `yaml:"b_BCE_AK"`
-	BaiduBCESK            string   `yaml:"b_BCE_SK"`
-	BaiduAudit            int      `yaml:"b_audit"`
-	AliyunEndpoint        string   `yaml:"a_OSS_EndPoint"`
-	AliyunAccessKeyId     string   `yaml:"a_OSS_AccessKeyId"`
-	AliyunAccessKeySecret string   `yaml:"a_OSS_AccessKeySecret"`
-	AliyunBucketName      string   `yaml:"a_OSS_BucketName"`
-	AliyunAudit           bool     `yaml:"a_audit"`
-	Alias                 []string `yaml:"alias"`
-	SelfIntroduce         []string `yaml:"self_introduce"`
-	IdentifyAppids        []int64  `yaml:"identify_appids"`
-	TransFormApiIds       bool     `yaml:"transform_api_ids"`
-	CustomTemplateID      string   `yaml:"custom_template_id"`
-	KeyBoardID            string   `yaml:"keyboard_id"`
-	Uin                   int64    `yaml:"uin"`
-	VwhitePrefixMode      bool     `yaml:"v_white_prefix_mode"`
-	Enters                []string `yaml:"enters"`
-	LinkPrefix            string   `yaml:"link_prefix"`
-	LinkBots              []string `yaml:"link_bots"`
-	LinkText              string   `yaml:"link_text"`
-	LinkPic               string   `yaml:"link_pic"`
+	TencentBucketName      string   `yaml:"t_COS_BUCKETNAME"`
+	TencentBucketRegion    string   `yaml:"t_COS_REGION"`
+	TencentCosSecretid     string   `yaml:"t_COS_SECRETID"`
+	TencentSecretKey       string   `yaml:"t_COS_SECRETKEY"`
+	TencentAudit           bool     `yaml:"t_audit"`
+	OssType                int      `yaml:"oss_type"`
+	BaiduBOSBucketName     string   `yaml:"b_BOS_BUCKETNAME"`
+	BaiduBCEAK             string   `yaml:"b_BCE_AK"`
+	BaiduBCESK             string   `yaml:"b_BCE_SK"`
+	BaiduAudit             int      `yaml:"b_audit"`
+	AliyunEndpoint         string   `yaml:"a_OSS_EndPoint"`
+	AliyunAccessKeyId      string   `yaml:"a_OSS_AccessKeyId"`
+	AliyunAccessKeySecret  string   `yaml:"a_OSS_AccessKeySecret"`
+	AliyunBucketName       string   `yaml:"a_OSS_BucketName"`
+	AliyunAudit            bool     `yaml:"a_audit"`
+	Alias                  []string `yaml:"alias"`
+	SelfIntroduce          []string `yaml:"self_introduce"`
+	IdentifyAppids         []int64  `yaml:"identify_appids"`
+	TransFormApiIds        bool     `yaml:"transform_api_ids"`
+	CustomTemplateID       string   `yaml:"custom_template_id"`
+	KeyBoardID             string   `yaml:"keyboard_id"`
+	Uin                    int64    `yaml:"uin"`
+	VwhitePrefixMode       bool     `yaml:"v_white_prefix_mode"`
+	Enters                 []string `yaml:"enters"`
+	LinkPrefix             string   `yaml:"link_prefix"`
+	LinkBots               []string `yaml:"link_bots"`
+	LinkText               string   `yaml:"link_text"`
+	LinkPic                string   `yaml:"link_pic"`
+	DefaultContent         []string `yaml:"default_content"`
+	DefaultDailyReplyLimit int      `yaml:"default_daily_reply_limit"`
 }
 
 // LoadConfig 从文件中加载配置并初始化单例配置
@@ -1604,4 +1606,25 @@ func GetTimeOut() int {
 		return 200
 	}
 	return instance.Settings.TimeOut
+}
+
+// 获取兜底数组
+func GetDefaultContent() []string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.DefaultContent
+	}
+	return nil // 返回nil，如果instance为nil
+}
+
+func GetDefaultDailyReplyLimit() int {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to DefaultDailyReplyLimit value.")
+		return 3
+	}
+	return instance.Settings.DefaultDailyReplyLimit
 }

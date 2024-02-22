@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 	"os/signal"
@@ -45,6 +46,9 @@ var msgIdToEchoMap = make(map[int64]string)
 var msgIdToEchoMapMutex = &sync.Mutex{}
 
 var wsClients []*wsclient.WebSocketClient
+
+// UserReplyCountMap 用于存储每个用户的默认回复计数
+var UserReplyCountMap sync.Map
 
 var (
 	msgHandler        core.Handler
@@ -408,7 +412,11 @@ func textMsgHandler(ctx *core.Context) {
 		if err != nil {
 			log.Printf("Error waiting for action message: %v", err)
 			// 处理错误，比如发送默认回复或记录日志
-			return
+			message = DefaultReplyIfNeeded(ctx.MixedMsg.MsgHeader.FromUserName)
+			if message.Params.Message.(string) == "" {
+				log.Printf("默认信息为空,请到config设置,或该用户今日已达到默认回复上限.")
+				return
+			}
 		}
 	} else {
 		// 发送消息给WS接口...
@@ -416,7 +424,11 @@ func textMsgHandler(ctx *core.Context) {
 		if err != nil {
 			log.Printf("Error waiting for action message: %v", err)
 			// 处理错误，比如发送默认回复或记录日志
-			return
+			message = DefaultReplyIfNeeded(ctx.MixedMsg.MsgHeader.FromUserName)
+			if message.Params.Message.(string) == "" {
+				log.Printf("默认信息为空,请到config设置,或该用户今日已达到默认回复上限.")
+				return
+			}
 		}
 	}
 
@@ -438,7 +450,6 @@ func textMsgHandler(ctx *core.Context) {
 		ctx.AESResponse(resp, 0, "", nil) // aes密文回复
 		return
 	}
-
 	// 根据信息处理函数的返回类型决定如何回复
 	switch messageType {
 	case 1: // 纯文本信息
@@ -652,4 +663,73 @@ func processBase64Media(input string, pattern *regexp.Regexp, uploadFunc func(st
 
 	}
 	return input
+}
+
+// DefaultReplyIfNeeded 发送默认回复（如果需要）
+func DefaultReplyIfNeeded(fromUserName string) *callapi.ActionMessage {
+	// 获取今天的日期字符串
+	today := time.Now().Format("2006-01-02")
+	userKey := fmt.Sprintf("%s_%s", fromUserName, today)
+
+	// 获取用户今天的回复计数
+	value, ok := UserReplyCountMap.Load(userKey)
+	var count int
+	if ok {
+		count = value.(int)
+	}
+
+	// 检查是否已经达到每日回复限制
+	if count >= config.GetDefaultDailyReplyLimit() {
+		// 构造ActionMessage类型的消息
+		actionMessage := &callapi.ActionMessage{
+			Action: "send_group_msg",
+			Params: callapi.ParamsContent{
+				Message: "",
+			},
+		}
+		return actionMessage // 达到限制，返回空字符串
+	}
+
+	// 未达到限制，增加计数并选择一个默认回复
+	count++
+	UserReplyCountMap.Store(userKey, count)
+
+	defaultReplies := config.GetDefaultContent()
+	if len(defaultReplies) == 0 {
+		log.Println("No default content available.")
+		// 构造ActionMessage类型的消息
+		actionMessage := &callapi.ActionMessage{
+			Action: "send_group_msg",
+			Params: callapi.ParamsContent{
+				Message: "",
+			},
+		}
+		return actionMessage
+	}
+
+	// 随机选择一个默认回复发送
+	reply := GetRandomReply(defaultReplies)
+
+	// 构造ActionMessage类型的消息
+	actionMessage := &callapi.ActionMessage{
+		Action: "send_group_msg",
+		Params: callapi.ParamsContent{
+			Message: reply,
+		},
+	}
+
+	fmt.Println("发送默认回复:", reply)
+
+	return actionMessage
+}
+
+// GetRandomReply 从提供的回复列表中随机选择一个回复
+func GetRandomReply(replies []string) string {
+	if len(replies) == 0 {
+		return ""
+	}
+	// 生成一个replies切片长度范围内的随机索引
+	index := rand.Intn(len(replies))
+	// 返回随机选中的回复
+	return replies[index]
 }
