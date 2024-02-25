@@ -32,37 +32,34 @@ type VisualPrefixConfig struct {
 	NoWhiteResponse string   `yaml:"No_White_Response"`
 }
 type Settings struct {
-	WsAddress       []string `yaml:"ws_address"`
-	WxAppId         string   `yaml:"wxAppId"`
-	WxAppSecret     string   `yaml:"wxAppSecret"`
-	WxOriId         string   `yaml:"wxOriId"`
-	WxToken         string   `yaml:"wxToken"`
-	WxEncodedAESKey string   `yaml:"wxEncodedAESKey"`
-	TimeOut         int      `yaml:"timeOut"`
-
-	GlobalGroupOrPrivate bool     `yaml:"global_group_or_private"`
-	Array                bool     `yaml:"array"`
-	Server_dir           string   `yaml:"server_dir"`
-	Lotus                bool     `yaml:"lotus"`
-	Port                 string   `yaml:"port"`
-	WsToken              []string `yaml:"ws_token,omitempty"`         // 连接wss时使用,不是wss可留空 一一对应
-	MasterID             []string `yaml:"master_id,omitempty"`        // 如果需要在群权限判断是管理员是,将user_id填入这里,master_id是一个文本数组
-	EnableWsServer       bool     `yaml:"enable_ws_server,omitempty"` //正向ws开关
-	WsServerToken        string   `yaml:"ws_server_token,omitempty"`  //正向ws token
-	IdentifyFile         bool     `yaml:"identify_file"`              // 域名校验文件
-	Crt                  string   `yaml:"crt"`
-	Key                  string   `yaml:"key"`
-	DeveloperLog         bool     `yaml:"developer_log"`
-	Username             string   `yaml:"server_user_name"`
-	Password             string   `yaml:"server_user_password"`
-	ImageLimit           int      `yaml:"image_sizelimit"`
-	RemovePrefix         bool     `yaml:"remove_prefix"`
-	BackupPort           string   `yaml:"backup_port"`
-
-	Title      string `yaml:"title"`
-	HashID     bool   `yaml:"hash_id"`
-	TwoWayEcho bool   `yaml:"twoway_echo"`
-
+	WsAddress              []string             `yaml:"ws_address"`
+	WxAppId                string               `yaml:"wxAppId"`
+	WxAppSecret            string               `yaml:"wxAppSecret"`
+	WxOriId                string               `yaml:"wxOriId"`
+	WxToken                string               `yaml:"wxToken"`
+	WxEncodedAESKey        string               `yaml:"wxEncodedAESKey"`
+	TimeOut                int                  `yaml:"timeOut"`
+	GlobalGroupOrPrivate   bool                 `yaml:"global_group_or_private"`
+	Array                  bool                 `yaml:"array"`
+	Server_dir             string               `yaml:"server_dir"`
+	Lotus                  bool                 `yaml:"lotus"`
+	Port                   string               `yaml:"port"`
+	WsToken                []string             `yaml:"ws_token,omitempty"`         // 连接wss时使用,不是wss可留空 一一对应
+	MasterID               []string             `yaml:"master_id,omitempty"`        // 如果需要在群权限判断是管理员是,将user_id填入这里,master_id是一个文本数组
+	EnableWsServer         bool                 `yaml:"enable_ws_server,omitempty"` //正向ws开关
+	WsServerToken          string               `yaml:"ws_server_token,omitempty"`  //正向ws token
+	IdentifyFile           bool                 `yaml:"identify_file"`              // 域名校验文件
+	Crt                    string               `yaml:"crt"`
+	Key                    string               `yaml:"key"`
+	DeveloperLog           bool                 `yaml:"developer_log"`
+	Username               string               `yaml:"server_user_name"`
+	Password               string               `yaml:"server_user_password"`
+	ImageLimit             int                  `yaml:"image_sizelimit"`
+	RemovePrefix           bool                 `yaml:"remove_prefix"`
+	BackupPort             string               `yaml:"backup_port"`
+	Title                  string               `yaml:"title"`
+	HashID                 bool                 `yaml:"hash_id"`
+	TwoWayEcho             bool                 `yaml:"twoway_echo"`
 	WhitePrefixMode        bool                 `yaml:"white_prefix_mode"`
 	WhitePrefixs           []string             `yaml:"white_prefixs"`
 	BlackPrefixMode        bool                 `yaml:"black_prefix_mode"`
