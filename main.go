@@ -405,13 +405,31 @@ func textMsgHandler(ctx *core.Context) {
 		msgIdToEchoMapMutex.Unlock()
 	}
 	var message *callapi.ActionMessage
+	// 首先获取超时时间和长查询命令列表
 	timeout := config.GetTimeOut()
+	longQueryCommands := config.GetLongQueryCommands()
+
+	// 检查消息是否以长查询命令开头
+	for _, cmd := range longQueryCommands {
+		// 如果cmd是空字符串，则跳过不检查
+		if cmd == "" {
+			continue
+		}
+
+		if strings.HasPrefix(ctx.MixedMsg.Content, cmd) {
+			// 如果是长查询命令，将超时时间设置为15秒
+			timeout = 15
+			log.Printf("LongQueryCommand detected: %s", cmd)
+			break
+		}
+	}
+
 	if config.GetTwoWayEcho() {
-		// 发送消息给WS接口...
-		message, err = wsclient.WaitForActionMessage(echo, time.Duration(timeout)*time.Second) // 超时时间可以自定义
+		// 发送消息给WS接口，并等待响应
+		message, err = wsclient.WaitForActionMessage(echo, time.Duration(timeout)*time.Second) // 使用新的超时时间
 		if err != nil {
 			log.Printf("Error waiting for action message: %v", err)
-			// 处理错误，比如发送默认回复或记录日志
+			// 处理错误...
 			message = DefaultReplyIfNeeded(ctx.MixedMsg.MsgHeader.FromUserName)
 			if message.Params.Message.(string) == "" {
 				log.Printf("默认信息为空,请到config设置,或该用户今日已达到默认回复上限.")
@@ -419,11 +437,11 @@ func textMsgHandler(ctx *core.Context) {
 			}
 		}
 	} else {
-		// 发送消息给WS接口...
-		message, err = wsclient.WaitForGeneralMessage(time.Duration(timeout) * time.Second) // 超时时间可以自定义
+		// 发送消息给WS接口，并等待响应
+		message, err = wsclient.WaitForGeneralMessage(time.Duration(timeout) * time.Second) // 使用新的超时时间
 		if err != nil {
 			log.Printf("Error waiting for action message: %v", err)
-			// 处理错误，比如发送默认回复或记录日志
+			// 处理错误...
 			message = DefaultReplyIfNeeded(ctx.MixedMsg.MsgHeader.FromUserName)
 			if message.Params.Message.(string) == "" {
 				log.Printf("默认信息为空,请到config设置,或该用户今日已达到默认回复上限.")
@@ -493,9 +511,158 @@ func menuClickEventHandler(ctx *core.Context) {
 	ctx.AESResponse(resp, 0, "", nil) // aes密文回复
 }
 
+// 被关注
 func defaultEventHandler(ctx *core.Context) {
+	var err error
 	log.Printf("收到事件:\n%s\n", ctx.MsgPlaintext)
-	ctx.NoneResponse()
+	if ctx.MixedMsg.EventType == "subscribe" {
+		// 解析信息
+		msg := request.GetText(ctx.MixedMsg)
+		// 获取订阅消息类型和可能的消息列表
+		subscribeMsgType := config.GetSubscribeMsgType()
+		subscribeMsgs := config.GetSubscribeMsgs()
+		if len(subscribeMsgs) == 0 {
+			log.Printf("No subscribe messages configured.")
+			return
+		}
+
+		// 从列表中随机选择一条消息
+		randomMsg := subscribeMsgs[rand.Intn(len(subscribeMsgs))]
+
+		switch subscribeMsgType {
+		case 1:
+			log.Printf("Sending subscribe message: %s", randomMsg)
+		case 2:
+			log.Printf("Assigning random message for further processing: %s", randomMsg)
+			// 这将随机消息赋值给ctx.MixedMsg.Content，供后续处理
+			ctx.MixedMsg.Content = randomMsg
+			//subscribe信息是没有msgid的官方建议用时间做区分
+			msgIdToEchoMapMutex.Lock()
+			echo, exists := msgIdToEchoMap[msg.CreateTime]
+			msgIdToEchoMapMutex.Unlock()
+
+			// 如果msgId不存在，则处理消息
+			if !exists {
+				// 根据配置调用相应的处理函数
+				if config.GetGlobalGroupOrPrivate() {
+					echo, err = Processor.ProcessGroupMessage(ctx, wsClients)
+					if err != nil {
+						log.Printf("处理信息出错:\n%v\n", err)
+					}
+				} else {
+					echo, err = Processor.ProcessC2CMessage(ctx, wsClients)
+					if err != nil {
+						log.Printf("处理信息出错:\n%v\n", err)
+					}
+				}
+
+				// 存储msgId和echo的映射关系
+				msgIdToEchoMapMutex.Lock()
+				msgIdToEchoMap[msg.CreateTime] = echo
+				msgIdToEchoMapMutex.Unlock()
+			}
+			var message *callapi.ActionMessage
+			// 首先获取超时时间和长查询命令列表
+			timeout := config.GetTimeOut()
+			longQueryCommands := config.GetLongQueryCommands()
+
+			// 检查消息是否以长查询命令开头
+			for _, cmd := range longQueryCommands {
+				// 如果cmd是空字符串，则跳过不检查
+				if cmd == "" {
+					continue
+				}
+
+				if strings.HasPrefix(ctx.MixedMsg.Content, cmd) {
+					// 如果是长查询命令，将超时时间设置为15秒
+					timeout = 15
+					log.Printf("LongQueryCommand detected: %s", cmd)
+					break
+				}
+			}
+
+			if config.GetTwoWayEcho() {
+				// 发送消息给WS接口，并等待响应
+				message, err = wsclient.WaitForActionMessage(echo, time.Duration(timeout)*time.Second) // 使用新的超时时间
+				if err != nil {
+					log.Printf("Error waiting for action message: %v", err)
+					// 处理错误...
+					message = DefaultReplyIfNeeded(ctx.MixedMsg.MsgHeader.FromUserName)
+					if message.Params.Message.(string) == "" {
+						log.Printf("默认信息为空,请到config设置,或该用户今日已达到默认回复上限.")
+						return
+					}
+				}
+			} else {
+				// 发送消息给WS接口，并等待响应
+				message, err = wsclient.WaitForGeneralMessage(time.Duration(timeout) * time.Second) // 使用新的超时时间
+				if err != nil {
+					log.Printf("Error waiting for action message: %v", err)
+					// 处理错误...
+					message = DefaultReplyIfNeeded(ctx.MixedMsg.MsgHeader.FromUserName)
+					if message.Params.Message.(string) == "" {
+						log.Printf("默认信息为空,请到config设置,或该用户今日已达到默认回复上限.")
+						return
+					}
+				}
+			}
+			//再次覆盖randomMsg
+			// 尝试将message.Params.Message断言为string类型
+			if msgStr, ok := message.Params.Message.(string); ok {
+				randomMsg = msgStr
+			} else {
+				// 如果不是string，调用parseMessage函数处理
+				randomMsg = handlers.ParseMessageContent(message.Params.Message)
+			}
+			//发送成功回执
+			handlers.SendResponse(wsClients, err, message)
+		default:
+			//返回200 ok
+			ctx.NoneResponse()
+			log.Printf("Unsupported subscribe message type: %d", subscribeMsgType)
+			return
+		}
+
+		// 调用信息处理函数
+		messageType, result, err := ProcessMessage(randomMsg, wechatClient)
+		if err != nil {
+			// 处理错误情况
+			// 例如，可以回复一个文本消息表明无法处理该消息
+			log.Printf("Error ProcessMessage: %v", err)
+			resp := response.NewText(msg.FromUserName, msg.ToUserName, msg.CreateTime, "无法处理您的消息")
+			ctx.AESResponse(resp, 0, "", nil) // aes密文回复
+			return
+		}
+		// 根据信息处理函数的返回类型决定如何回复
+		switch messageType {
+		case 1: // 纯文本信息
+			textContent := result.(string) // 类型断言
+			resp := response.NewText(msg.FromUserName, msg.ToUserName, msg.CreateTime, textContent)
+			ctx.AESResponse(resp, 0, "", nil) // aes密文回复
+		case 2: // 纯图片信息
+			mediaId := result.(string) // 类型断言
+			resp := response.NewImage(msg.FromUserName, msg.ToUserName, msg.CreateTime, mediaId)
+			ctx.AESResponse(resp, 0, "", nil) // aes密文回复
+		case 3: // 纯语音信息
+			mediaId := result.(string) // 类型断言
+			resp := response.NewVoice(msg.FromUserName, msg.ToUserName, msg.CreateTime, mediaId)
+			ctx.AESResponse(resp, 0, "", nil) // aes密文回复
+		case 4: // 图文信息
+			articles := result.(response.News).Articles // 类型断言
+			resp := response.NewNews(msg.FromUserName, msg.ToUserName, msg.CreateTime, articles)
+			ctx.AESResponse(resp, 0, "", nil) // aes密文回复
+		// 添加更多case处理其他情况
+		default:
+			// 未知类型，可以回复一个默认消息
+			resp := response.NewText(msg.FromUserName, msg.ToUserName, msg.CreateTime, "未知的消息类型")
+			ctx.AESResponse(resp, 0, "", nil) // aes密文回复
+		}
+	} else {
+		//返回200 ok
+		ctx.NoneResponse()
+		log.Printf("Received non-subscribe event:\n%s\n", string(ctx.MsgPlaintext))
+		return
+	}
 }
 
 // wxCallbackHandler 是处理回调请求的 http handler.
