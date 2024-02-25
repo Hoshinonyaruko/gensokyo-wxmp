@@ -32,112 +32,105 @@ type VisualPrefixConfig struct {
 	NoWhiteResponse string   `yaml:"No_White_Response"`
 }
 type Settings struct {
-	WsAddress       []string `yaml:"ws_address"`
-	WxAppId         string   `yaml:"wxAppId"`
-	WxAppSecret     string   `yaml:"wxAppSecret"`
-	WxOriId         string   `yaml:"wxOriId"`
-	WxToken         string   `yaml:"wxToken"`
-	WxEncodedAESKey string   `yaml:"wxEncodedAESKey"`
-	TimeOut         int      `yaml:"timeOut"`
-
-	GlobalGroupOrPrivate bool     `yaml:"global_group_or_private"`
-	Array                bool     `yaml:"array"`
-	Server_dir           string   `yaml:"server_dir"`
-	Lotus                bool     `yaml:"lotus"`
-	Port                 string   `yaml:"port"`
-	WsToken              []string `yaml:"ws_token,omitempty"`         // 连接wss时使用,不是wss可留空 一一对应
-	MasterID             []string `yaml:"master_id,omitempty"`        // 如果需要在群权限判断是管理员是,将user_id填入这里,master_id是一个文本数组
-	EnableWsServer       bool     `yaml:"enable_ws_server,omitempty"` //正向ws开关
-	WsServerToken        string   `yaml:"ws_server_token,omitempty"`  //正向ws token
-	IdentifyFile         bool     `yaml:"identify_file"`              // 域名校验文件
-	Crt                  string   `yaml:"crt"`
-	Key                  string   `yaml:"key"`
-	DeveloperLog         bool     `yaml:"developer_log"`
-	Username             string   `yaml:"server_user_name"`
-	Password             string   `yaml:"server_user_password"`
-	ImageLimit           int      `yaml:"image_sizelimit"`
-	RemovePrefix         bool     `yaml:"remove_prefix"`
-	BackupPort           string   `yaml:"backup_port"`
-
-	Title      string `yaml:"title"`
-	HashID     bool   `yaml:"hash_id"`
-	TwoWayEcho bool   `yaml:"twoway_echo"`
-
-	WhitePrefixMode bool                 `yaml:"white_prefix_mode"`
-	WhitePrefixs    []string             `yaml:"white_prefixs"`
-	BlackPrefixMode bool                 `yaml:"black_prefix_mode"`
-	BlackPrefixs    []string             `yaml:"black_prefixs"`
-	VisualPrefixs   []VisualPrefixConfig `yaml:"visual_prefixs"`
-	VisibleIp       bool                 `yaml:"visible_ip"`
-	ForwardMsgLimit int                  `yaml:"forward_msg_limit"`
-
-	LogLevel   int    `yaml:"log_level"`
-	SaveLogs   bool   `yaml:"save_logs"`
-	BindPrefix string `yaml:"bind_prefix"`
-	MePrefix   string `yaml:"me_prefix"`
-
-	ImageLimitB     int    `yaml:"image_limit"`
-	RecordBitRate   string `yaml:"record_bitRate"`
-	NoWhiteResponse string `yaml:"No_White_Response"`
-	SendError       bool   `yaml:"send_error"`
-
-	LotusPassword string `yaml:"lotus_password"`
-	WsServerPath  string `yaml:"ws_server_path"`
-	IdmapPro      bool   `yaml:"idmap_pro"`
-	CardAndNick   string `yaml:"card_nick"`
-
-	CustomBotName string `yaml:"custom_bot_name"`
-	SendDelay     int    `yaml:"send_delay"`
-
-	ReconnecTimes       int `yaml:"reconnect_times"`
-	HeartBeatInterval   int `yaml:"heart_beat_interval"`
-	LaunchReconectTimes int `yaml:"launch_reconnect_times"`
-
-	WhiteBypass         []int64  `yaml:"white_bypass"`
-	TransferUrl         bool     `yaml:"transfer_url"`
-	HttpAddress         string   `yaml:"http_address"`
-	HttpVersion         int      `yaml:"http_version"`
-	HttpTimeOut         int      `yaml:"http_timeout"`
-	PostUrl             []string `yaml:"post_url"`
-	PostSecret          []string `yaml:"post_secret"`
-	PostMaxRetries      []int    `yaml:"post_max_retries"`
-	PostRetriesInterval []int    `yaml:"post_retries_interval"`
-	NativeOb11          bool     `yaml:"native_ob11"`
-	RamDomSeq           bool     `yaml:"ramdom_seq"`
-	UrlToQrimage        bool     `yaml:"url_to_qrimage"`
-	QrSize              int      `yaml:"qr_size"`
-	WhiteBypassRevers   bool     `yaml:"white_bypass_reverse"`
-
-	TencentBucketName      string   `yaml:"t_COS_BUCKETNAME"`
-	TencentBucketRegion    string   `yaml:"t_COS_REGION"`
-	TencentCosSecretid     string   `yaml:"t_COS_SECRETID"`
-	TencentSecretKey       string   `yaml:"t_COS_SECRETKEY"`
-	TencentAudit           bool     `yaml:"t_audit"`
-	OssType                int      `yaml:"oss_type"`
-	BaiduBOSBucketName     string   `yaml:"b_BOS_BUCKETNAME"`
-	BaiduBCEAK             string   `yaml:"b_BCE_AK"`
-	BaiduBCESK             string   `yaml:"b_BCE_SK"`
-	BaiduAudit             int      `yaml:"b_audit"`
-	AliyunEndpoint         string   `yaml:"a_OSS_EndPoint"`
-	AliyunAccessKeyId      string   `yaml:"a_OSS_AccessKeyId"`
-	AliyunAccessKeySecret  string   `yaml:"a_OSS_AccessKeySecret"`
-	AliyunBucketName       string   `yaml:"a_OSS_BucketName"`
-	AliyunAudit            bool     `yaml:"a_audit"`
-	Alias                  []string `yaml:"alias"`
-	SelfIntroduce          []string `yaml:"self_introduce"`
-	IdentifyAppids         []int64  `yaml:"identify_appids"`
-	TransFormApiIds        bool     `yaml:"transform_api_ids"`
-	CustomTemplateID       string   `yaml:"custom_template_id"`
-	KeyBoardID             string   `yaml:"keyboard_id"`
-	Uin                    int64    `yaml:"uin"`
-	VwhitePrefixMode       bool     `yaml:"v_white_prefix_mode"`
-	Enters                 []string `yaml:"enters"`
-	LinkPrefix             string   `yaml:"link_prefix"`
-	LinkBots               []string `yaml:"link_bots"`
-	LinkText               string   `yaml:"link_text"`
-	LinkPic                string   `yaml:"link_pic"`
-	DefaultContent         []string `yaml:"default_content"`
-	DefaultDailyReplyLimit int      `yaml:"default_daily_reply_limit"`
+	WsAddress              []string             `yaml:"ws_address"`
+	WxAppId                string               `yaml:"wxAppId"`
+	WxAppSecret            string               `yaml:"wxAppSecret"`
+	WxOriId                string               `yaml:"wxOriId"`
+	WxToken                string               `yaml:"wxToken"`
+	WxEncodedAESKey        string               `yaml:"wxEncodedAESKey"`
+	TimeOut                int                  `yaml:"timeOut"`
+	GlobalGroupOrPrivate   bool                 `yaml:"global_group_or_private"`
+	Array                  bool                 `yaml:"array"`
+	Server_dir             string               `yaml:"server_dir"`
+	Lotus                  bool                 `yaml:"lotus"`
+	Port                   string               `yaml:"port"`
+	WsToken                []string             `yaml:"ws_token,omitempty"`         // 连接wss时使用,不是wss可留空 一一对应
+	MasterID               []string             `yaml:"master_id,omitempty"`        // 如果需要在群权限判断是管理员是,将user_id填入这里,master_id是一个文本数组
+	EnableWsServer         bool                 `yaml:"enable_ws_server,omitempty"` //正向ws开关
+	WsServerToken          string               `yaml:"ws_server_token,omitempty"`  //正向ws token
+	IdentifyFile           bool                 `yaml:"identify_file"`              // 域名校验文件
+	Crt                    string               `yaml:"crt"`
+	Key                    string               `yaml:"key"`
+	DeveloperLog           bool                 `yaml:"developer_log"`
+	Username               string               `yaml:"server_user_name"`
+	Password               string               `yaml:"server_user_password"`
+	ImageLimit             int                  `yaml:"image_sizelimit"`
+	RemovePrefix           bool                 `yaml:"remove_prefix"`
+	BackupPort             string               `yaml:"backup_port"`
+	Title                  string               `yaml:"title"`
+	HashID                 bool                 `yaml:"hash_id"`
+	TwoWayEcho             bool                 `yaml:"twoway_echo"`
+	WhitePrefixMode        bool                 `yaml:"white_prefix_mode"`
+	WhitePrefixs           []string             `yaml:"white_prefixs"`
+	BlackPrefixMode        bool                 `yaml:"black_prefix_mode"`
+	BlackPrefixs           []string             `yaml:"black_prefixs"`
+	VisualPrefixs          []VisualPrefixConfig `yaml:"visual_prefixs"`
+	VisibleIp              bool                 `yaml:"visible_ip"`
+	ForwardMsgLimit        int                  `yaml:"forward_msg_limit"`
+	LogLevel               int                  `yaml:"log_level"`
+	SaveLogs               bool                 `yaml:"save_logs"`
+	BindPrefix             string               `yaml:"bind_prefix"`
+	MePrefix               string               `yaml:"me_prefix"`
+	ImageLimitB            int                  `yaml:"image_limit"`
+	RecordBitRate          string               `yaml:"record_bitRate"`
+	NoWhiteResponse        string               `yaml:"No_White_Response"`
+	SendError              bool                 `yaml:"send_error"`
+	LotusPassword          string               `yaml:"lotus_password"`
+	WsServerPath           string               `yaml:"ws_server_path"`
+	IdmapPro               bool                 `yaml:"idmap_pro"`
+	CardAndNick            string               `yaml:"card_nick"`
+	CustomBotName          string               `yaml:"custom_bot_name"`
+	SendDelay              int                  `yaml:"send_delay"`
+	ReconnecTimes          int                  `yaml:"reconnect_times"`
+	HeartBeatInterval      int                  `yaml:"heart_beat_interval"`
+	LaunchReconectTimes    int                  `yaml:"launch_reconnect_times"`
+	WhiteBypass            []int64              `yaml:"white_bypass"`
+	TransferUrl            bool                 `yaml:"transfer_url"`
+	HttpAddress            string               `yaml:"http_address"`
+	HttpVersion            int                  `yaml:"http_version"`
+	HttpTimeOut            int                  `yaml:"http_timeout"`
+	PostUrl                []string             `yaml:"post_url"`
+	PostSecret             []string             `yaml:"post_secret"`
+	PostMaxRetries         []int                `yaml:"post_max_retries"`
+	PostRetriesInterval    []int                `yaml:"post_retries_interval"`
+	NativeOb11             bool                 `yaml:"native_ob11"`
+	RamDomSeq              bool                 `yaml:"ramdom_seq"`
+	UrlToQrimage           bool                 `yaml:"url_to_qrimage"`
+	QrSize                 int                  `yaml:"qr_size"`
+	WhiteBypassRevers      bool                 `yaml:"white_bypass_reverse"`
+	TencentBucketName      string               `yaml:"t_COS_BUCKETNAME"`
+	TencentBucketRegion    string               `yaml:"t_COS_REGION"`
+	TencentCosSecretid     string               `yaml:"t_COS_SECRETID"`
+	TencentSecretKey       string               `yaml:"t_COS_SECRETKEY"`
+	TencentAudit           bool                 `yaml:"t_audit"`
+	OssType                int                  `yaml:"oss_type"`
+	BaiduBOSBucketName     string               `yaml:"b_BOS_BUCKETNAME"`
+	BaiduBCEAK             string               `yaml:"b_BCE_AK"`
+	BaiduBCESK             string               `yaml:"b_BCE_SK"`
+	BaiduAudit             int                  `yaml:"b_audit"`
+	AliyunEndpoint         string               `yaml:"a_OSS_EndPoint"`
+	AliyunAccessKeyId      string               `yaml:"a_OSS_AccessKeyId"`
+	AliyunAccessKeySecret  string               `yaml:"a_OSS_AccessKeySecret"`
+	AliyunBucketName       string               `yaml:"a_OSS_BucketName"`
+	AliyunAudit            bool                 `yaml:"a_audit"`
+	Alias                  []string             `yaml:"alias"`
+	SelfIntroduce          []string             `yaml:"self_introduce"`
+	IdentifyAppids         []int64              `yaml:"identify_appids"`
+	TransFormApiIds        bool                 `yaml:"transform_api_ids"`
+	CustomTemplateID       string               `yaml:"custom_template_id"`
+	KeyBoardID             string               `yaml:"keyboard_id"`
+	Uin                    int64                `yaml:"uin"`
+	VwhitePrefixMode       bool                 `yaml:"v_white_prefix_mode"`
+	Enters                 []string             `yaml:"enters"`
+	LinkPrefix             string               `yaml:"link_prefix"`
+	LinkBots               []string             `yaml:"link_bots"`
+	LinkText               string               `yaml:"link_text"`
+	LinkPic                string               `yaml:"link_pic"`
+	DefaultContent         []string             `yaml:"default_content"`
+	DefaultDailyReplyLimit int                  `yaml:"default_daily_reply_limit"`
+	LongQueryCommands      []string             `yaml:"long_query_commands"`
+	SubScribeMsgType       int                  `yaml:"subscribe_msg_type"`
+	SubscribeMsgs          []string             `yaml:"subscribe_msgs"`
 }
 
 // LoadConfig 从文件中加载配置并初始化单例配置
@@ -1627,4 +1620,36 @@ func GetDefaultDailyReplyLimit() int {
 		return 3
 	}
 	return instance.Settings.DefaultDailyReplyLimit
+}
+
+// 获取例外指令
+func GetLongQueryCommands() []string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.LongQueryCommands
+	}
+	return nil // 返回nil，如果instance为nil
+}
+
+// GetSubScribeMsgType
+func GetSubscribeMsgType() int {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		mylog.Println("Warning: instance is nil when trying to SubScribeMsgType value.")
+		return 0
+	}
+	return instance.Settings.SubScribeMsgType
+}
+
+// 获取欢迎指令
+func GetSubscribeMsgs() []string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.SubscribeMsgs
+	}
+	return nil // 返回nil，如果instance为nil
 }

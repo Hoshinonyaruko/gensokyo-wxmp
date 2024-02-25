@@ -12,7 +12,10 @@ settings:
   wxEncodedAESKey: "<YOUR_CLIENT_SECRET>"              # 可选; aes加密解密key, 43字节长(base64编码, 去掉了尾部的'='), 安全模式必须设置;
   wxOriId: ""                                          # 可选; 公众号的原始ID(微信公众号管理后台查看), 如果设置了值则该Server只能处理 ToUserName 为该值的公众号的消息(事件);
 
-  timeOut : 4                                          # 等待反向ws信息超时时间,默认4秒,超过4秒微信服务端就不认了,你的服务端需要在4秒内返回结果.
+  timeOut : 4                                          # 等待反向ws信息超时时间,默认4秒,当超时时,可以触发默认回复,引导用户。
+  long_query_commands : ["","",""]                     # 允许一些长时间指令等待更长时间,如gpt,ai绘图,vits语音指令(微信服务器每5秒重试发一次,一共3次,所以最长等待15秒。)
+  subscribe_msg_type : 0                               # 默认0 代表不发欢迎信息 1=从subscribe_msgs随机 2=随机一个subscribe_msgs发给反向ws
+  subscribe_msgs : ["","",""]                          # 设置需要发送给用户或服务端的欢迎信息(发给服务端,比如 /help 然后会把服务端的返回回复发给用户)
 
   global_group_or_private: true                      # 公众号收到的是群聊信息还是私聊 默认true=群
   array: false                                       # 连接trss云崽请开启array
