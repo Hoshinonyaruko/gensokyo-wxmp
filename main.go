@@ -14,6 +14,7 @@ import (
 	"os/signal"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -56,20 +57,6 @@ var (
 	wechatClient      *core.Client
 	accessTokenServer *core.DefaultAccessTokenServer
 )
-
-func init() {
-	// 首先注册处理函数
-	http.HandleFunc("/wx_callback", wxCallbackHandler)
-
-	// 在新的goroutine中启动HTTP服务器
-	go func() {
-		log.Println("HTTP server is starting on :80")
-		err := http.ListenAndServe(":80", nil)
-		if err != nil {
-			log.Fatalf("HTTP server failed to start: %v", err)
-		}
-	}()
-}
 
 func main() {
 	//log.Println(http.ListenAndServe(":80", nil))
@@ -119,6 +106,21 @@ func main() {
 	sys.SetTitle(conf.Settings.Title)
 	webuiURL := config.ComposeWebUIURL(conf.Settings.Lotus)     // 调用函数获取URL
 	webuiURLv2 := config.ComposeWebUIURLv2(conf.Settings.Lotus) // 调用函数获取URL
+
+	// 首先注册处理函数
+	http.HandleFunc("/wx_callback", wxCallbackHandler)
+
+	// 从配置中获取端口号并转换为字符串
+	wxport := strconv.Itoa(conf.Settings.WxPort) // 将 int 类型端口转换为字符串
+
+	// 在新的 goroutine 中启动 HTTP 服务器
+	go func() {
+		log.Printf("HTTP server is starting on :%s\n", wxport)
+		err := http.ListenAndServe(":"+wxport, nil) // 使用 wxport 作为监听端口
+		if err != nil {
+			log.Fatalf("HTTP server failed to start: %v", err)
+		}
+	}()
 
 	// wx逻辑
 	accessTokenServer = core.NewDefaultAccessTokenServer(conf.Settings.WxAppId, conf.Settings.WxAppSecret, nil)
