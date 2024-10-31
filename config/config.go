@@ -37,6 +37,7 @@ type Settings struct {
 	WxAppSecret            string               `yaml:"wxAppSecret"`
 	WxOriId                string               `yaml:"wxOriId"`
 	WxToken                string               `yaml:"wxToken"`
+	WxPort                 int                  `yaml:"wxPort"`
 	WxEncodedAESKey        string               `yaml:"wxEncodedAESKey"`
 	TimeOut                int                  `yaml:"timeOut"`
 	GlobalGroupOrPrivate   bool                 `yaml:"global_group_or_private"`
