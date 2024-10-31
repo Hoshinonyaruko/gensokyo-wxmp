@@ -101,7 +101,7 @@ jobs:
         fi
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: gensokyo-${{ matrix.os }}-${{ matrix.goarch }}
         path: output/gensokyo-${{ matrix.os }}-${{ matrix.goarch }}${{ endsWith(matrix.os, 'windows') && '.exe' || '' }}
@@ -111,7 +111,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download all artifacts
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v4
         with:
           path: output
 
