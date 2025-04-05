@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -25,6 +26,7 @@ import (
 	"github.com/chanxuehong/wechat/mp/menu"
 	"github.com/chanxuehong/wechat/mp/message/callback/request"
 	"github.com/chanxuehong/wechat/mp/message/callback/response"
+	"github.com/chanxuehong/wechat/mp/message/templateWX"
 	"github.com/fatih/color"
 	"github.com/gin-gonic/gin"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/Processor"
@@ -34,6 +36,7 @@ import (
 	"github.com/hoshinonyaruko/gensokyo-wxmp/idmap"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/images"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/mylog"
+	"github.com/hoshinonyaruko/gensokyo-wxmp/praser"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/server"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/silk"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/sys"
@@ -43,7 +46,7 @@ import (
 	"github.com/hoshinonyaruko/gensokyo-wxmp/wsclient"
 )
 
-var msgIdToEchoMap = make(map[int64]string)
+var msgIdToEchoMap = make(map[string]string)
 var msgIdToEchoMapMutex = &sync.Mutex{}
 
 var wsClients []*wsclient.WebSocketClient
@@ -116,9 +119,19 @@ func main() {
 	// 在新的 goroutine 中启动 HTTP 服务器
 	go func() {
 		log.Printf("HTTP server is starting on :%s\n", wxport)
-		err := http.ListenAndServe(":"+wxport, nil) // 使用 wxport 作为监听端口
-		if err != nil {
-			log.Fatalf("HTTP server failed to start: %v", err)
+		if wxport == "443" {
+			// 使用HTTPS
+			crtPath := config.GetCrtPath()
+			keyPath := config.GetKeyPath()
+			err := http.ListenAndServeTLS(":"+wxport, crtPath, keyPath, nil) // 使用 wxport 作为监听端口
+			if err != nil {
+				log.Fatalf("HTTP server failed to start: %v", err)
+			}
+		} else {
+			err := http.ListenAndServe(":"+wxport, nil) // 使用 wxport 作为监听端口
+			if err != nil {
+				log.Fatalf("HTTP server failed to start: %v", err)
+			}
 		}
 	}()
 
@@ -338,6 +351,21 @@ func main() {
 	cyan.Printf("%s\n", template.Logo)
 	cyan.Printf("欢迎来到Gensokyo, 公网控制台地址(需开放端口): %s\n", webuiURLv2)
 
+	// 获取模板列表
+	templateList, err := templateWX.GetAllPrivateTemplate(wechatClient)
+	if err != nil {
+		log.Fatalf("Error getting template list: %v", err)
+	}
+
+	// 将 templateList 转换为 JSON 格式
+	templateListJSON, err := json.MarshalIndent(templateList, "", "  ")
+	if err != nil {
+		log.Fatalf("Error marshaling template list: %v", err)
+	}
+
+	// 打印 JSON 格式的数据
+	fmt.Println("获取到的模板:" + string(templateListJSON))
+
 	// 使用通道来等待信号
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
@@ -382,30 +410,19 @@ func textMsgHandler(ctx *core.Context) {
 	// 解析信息
 	msg := request.GetText(ctx.MixedMsg)
 
-	msgIdToEchoMapMutex.Lock()
-	echo, exists := msgIdToEchoMap[msg.MsgId]
-	msgIdToEchoMapMutex.Unlock()
-
-	// 如果msgId不存在，则处理消息
-	if !exists {
-		// 根据配置调用相应的处理函数
-		if config.GetGlobalGroupOrPrivate() {
-			echo, err = Processor.ProcessGroupMessage(ctx, wsClients)
-			if err != nil {
-				log.Printf("处理信息出错:\n%v\n", err)
-			}
-		} else {
-			echo, err = Processor.ProcessC2CMessage(ctx, wsClients)
-			if err != nil {
-				log.Printf("处理信息出错:\n%v\n", err)
-			}
+	// 根据配置调用相应的处理函数
+	if config.GetGlobalGroupOrPrivate() {
+		_, err = Processor.ProcessGroupMessage(ctx, wsClients)
+		if err != nil {
+			log.Printf("处理信息出错:\n%v\n", err)
 		}
-
-		// 存储msgId和echo的映射关系
-		msgIdToEchoMapMutex.Lock()
-		msgIdToEchoMap[msg.MsgId] = echo
-		msgIdToEchoMapMutex.Unlock()
+	} else {
+		_, err = Processor.ProcessC2CMessage(ctx, wsClients)
+		if err != nil {
+			log.Printf("处理信息出错:\n%v\n", err)
+		}
 	}
+
 	var message *callapi.ActionMessage
 	// 首先获取超时时间和长查询命令列表
 	timeout := config.GetTimeOut()
@@ -426,29 +443,15 @@ func textMsgHandler(ctx *core.Context) {
 		}
 	}
 
-	if config.GetTwoWayEcho() {
-		// 发送消息给WS接口，并等待响应
-		message, err = wsclient.WaitForActionMessage(echo, time.Duration(timeout)*time.Second) // 使用新的超时时间
-		if err != nil {
-			log.Printf("Error waiting for action message: %v", err)
-			// 处理错误...
-			message = DefaultReplyIfNeeded(ctx.MixedMsg.MsgHeader.FromUserName)
-			if message.Params.Message.(string) == "" {
-				log.Printf("默认信息为空,请到config设置,或该用户今日已达到默认回复上限.")
-				return
-			}
-		}
-	} else {
-		// 发送消息给WS接口，并等待响应
-		message, err = wsclient.WaitForGeneralMessage(time.Duration(timeout) * time.Second) // 使用新的超时时间
-		if err != nil {
-			log.Printf("Error waiting for action message: %v", err)
-			// 处理错误...
-			message = DefaultReplyIfNeeded(ctx.MixedMsg.MsgHeader.FromUserName)
-			if message.Params.Message.(string) == "" {
-				log.Printf("默认信息为空,请到config设置,或该用户今日已达到默认回复上限.")
-				return
-			}
+	// 发送消息给WS接口，并等待响应
+	message, err = wsclient.WaitForActionMessage(msg.FromUserName, time.Duration(timeout)*time.Second) // 使用新的超时时间
+	if err != nil {
+		log.Printf("Error waiting for action message: %v", err)
+		// 处理错误...
+		message = DefaultReplyIfNeeded(ctx.MixedMsg.MsgHeader.FromUserName)
+		if message.Params.Message.(string) == "" {
+			log.Printf("默认信息为空,请到config设置,或该用户今日已达到默认回复上限.")
+			return
 		}
 	}
 
@@ -458,7 +461,7 @@ func textMsgHandler(ctx *core.Context) {
 		strmessage = msgStr
 	} else {
 		// 如果不是string，调用parseMessage函数处理
-		strmessage = handlers.ParseMessageContent(message.Params.Message)
+		strmessage = praser.ParseMessageContent(message.Params.Message)
 	}
 	// 调用信息处理函数
 	messageType, result, err := ProcessMessage(strmessage, wechatClient)
@@ -470,12 +473,47 @@ func textMsgHandler(ctx *core.Context) {
 		ctx.AESResponse(resp, 0, "", nil) // aes密文回复
 		return
 	}
+
+	// 获取并叠加历史信息，传入当前字数（这里假设当前字数为0）
+	pendingMsgsToReturn, _, err := wsclient.GetPendingMessages(msg.FromUserName, true, len(result.(string)))
+	if err != nil {
+		log.Printf("Error getting pending messages: %v", err)
+		// 如果无法获取历史消息，就直接处理当前的消息
+		pendingMsgsToReturn = nil
+	}
+
+	// 遍历所有历史消息，并叠加到 result 前
+	for _, message := range pendingMsgsToReturn {
+		var historyContent string
+		// 处理历史消息内容
+		if msgStr, ok := message.Params.Message.(string); ok {
+			historyContent = msgStr
+		} else {
+			// 如果不是string类型，调用parseMessage函数处理
+			historyContent = praser.ParseMessageContent(message.Params.Message)
+		}
+
+		// 将历史信息叠加到当前的 result 前
+		result = fmt.Sprintf("%s\n-----历史信息----\n%s", historyContent, result)
+	}
+
 	// 根据信息处理函数的返回类型决定如何回复
 	switch messageType {
 	case 1: // 纯文本信息
 		textContent := result.(string) // 类型断言
 		resp := response.NewText(msg.FromUserName, msg.ToUserName, msg.CreateTime, textContent)
-		ctx.AESResponse(resp, 0, "", nil) // aes密文回复
+		err := ctx.AESResponse(resp, 0, "", nil) // aes密文回复
+		if err != nil {
+			fmt.Print(err)
+		}
+
+		// testMsg := templateWX.GenerateTemplateMessage(msg.FromUserName, "Wh355bhldW772LJGL_gxftsX6TLde-_PDUzqDQmkb9k", "测试")
+
+		// _, err = templateWX.Send(wechatClient, testMsg)
+		// if err != nil {
+		// 	fmt.Print(err)
+		// }
+
 	case 2: // 纯图片信息
 		mediaId := result.(string) // 类型断言
 		resp := response.NewImage(msg.FromUserName, msg.ToUserName, msg.CreateTime, mediaId)
@@ -540,19 +578,19 @@ func defaultEventHandler(ctx *core.Context) {
 			ctx.MixedMsg.Content = randomMsg
 			//subscribe信息是没有msgid的官方建议用时间做区分
 			msgIdToEchoMapMutex.Lock()
-			echo, exists := msgIdToEchoMap[msg.CreateTime]
+			userID, exists := msgIdToEchoMap[msg.FromUserName]
 			msgIdToEchoMapMutex.Unlock()
 
 			// 如果msgId不存在，则处理消息
 			if !exists {
 				// 根据配置调用相应的处理函数
 				if config.GetGlobalGroupOrPrivate() {
-					echo, err = Processor.ProcessGroupMessage(ctx, wsClients)
+					userID, err = Processor.ProcessGroupMessage(ctx, wsClients)
 					if err != nil {
 						log.Printf("处理信息出错:\n%v\n", err)
 					}
 				} else {
-					echo, err = Processor.ProcessC2CMessage(ctx, wsClients)
+					userID, err = Processor.ProcessC2CMessage(ctx, wsClients)
 					if err != nil {
 						log.Printf("处理信息出错:\n%v\n", err)
 					}
@@ -560,7 +598,7 @@ func defaultEventHandler(ctx *core.Context) {
 
 				// 存储msgId和echo的映射关系
 				msgIdToEchoMapMutex.Lock()
-				msgIdToEchoMap[msg.CreateTime] = echo
+				msgIdToEchoMap[msg.FromUserName] = userID
 				msgIdToEchoMapMutex.Unlock()
 			}
 			var message *callapi.ActionMessage
@@ -583,38 +621,25 @@ func defaultEventHandler(ctx *core.Context) {
 				}
 			}
 
-			if config.GetTwoWayEcho() {
-				// 发送消息给WS接口，并等待响应
-				message, err = wsclient.WaitForActionMessage(echo, time.Duration(timeout)*time.Second) // 使用新的超时时间
-				if err != nil {
-					log.Printf("Error waiting for action message: %v", err)
-					// 处理错误...
-					message = DefaultReplyIfNeeded(ctx.MixedMsg.MsgHeader.FromUserName)
-					if message.Params.Message.(string) == "" {
-						log.Printf("默认信息为空,请到config设置,或该用户今日已达到默认回复上限.")
-						return
-					}
-				}
-			} else {
-				// 发送消息给WS接口，并等待响应
-				message, err = wsclient.WaitForGeneralMessage(time.Duration(timeout) * time.Second) // 使用新的超时时间
-				if err != nil {
-					log.Printf("Error waiting for action message: %v", err)
-					// 处理错误...
-					message = DefaultReplyIfNeeded(ctx.MixedMsg.MsgHeader.FromUserName)
-					if message.Params.Message.(string) == "" {
-						log.Printf("默认信息为空,请到config设置,或该用户今日已达到默认回复上限.")
-						return
-					}
+			// 发送消息给WS接口，并等待响应
+			message, err = wsclient.WaitForActionMessage(userID, time.Duration(timeout)*time.Second) // 使用新的超时时间
+			if err != nil {
+				log.Printf("Error waiting for action message: %v", err)
+				// 处理错误...
+				message = DefaultReplyIfNeeded(ctx.MixedMsg.MsgHeader.FromUserName)
+				if message.Params.Message.(string) == "" {
+					log.Printf("默认信息为空,请到config设置,或该用户今日已达到默认回复上限.")
+					return
 				}
 			}
+
 			//再次覆盖randomMsg
 			// 尝试将message.Params.Message断言为string类型
 			if msgStr, ok := message.Params.Message.(string); ok {
 				randomMsg = msgStr
 			} else {
 				// 如果不是string，调用parseMessage函数处理
-				randomMsg = handlers.ParseMessageContent(message.Params.Message)
+				randomMsg = praser.ParseMessageContent(message.Params.Message)
 			}
 			//发送成功回执
 			handlers.SendResponse(wsClients, err, message)

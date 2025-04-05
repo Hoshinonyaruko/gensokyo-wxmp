@@ -1,0 +1,65 @@
+获取到的模板:[
+  {
+    "template_id": "nkU753n6j2X_54v7jaGlOXk0-ZyqaXoJ50Gw3YFAhds",
+    "title": "订阅模板消息",
+    "primary_industry": "",
+    "deputy_industry": "",
+    "content": "{{content.DATA}}",
+    "example": ""
+  },
+  {
+    "template_id": "Wh355bhldW772LJGL_gxftsX6TLde-_PDUzqDQmkb9k",
+    "title": "训练结果通知",
+    "primary_industry": "",
+    "deputy_industry": "",
+    "content": "成绩:{{character_string18.DATA}}\n训练设备:{{phrase2.DATA}}\n",
+    "example": "成绩:98\n训练设备:自由训练\n"
+  }
+]
+
+我们采用第一个自由的模板,
+{
+  "touser":"OPENID",//客户openid
+   "template_id":"ngqIpbwh8bUfcSsECmogfXcV14J0tQlEpBO27izEYtY",//模板id，可在公众号设置消息模板那里获取
+   "url":"http://weixin.qq.com/download",            
+   "data":{
+           "first": {
+               "value":"恭喜你购买成功！",
+               "color":"#173177"
+           },
+           "keynote1":{
+               "value":"巧克力",
+               "color":"#173177"
+           },
+           "keynote2": {
+               "value":"39.8元",
+               "color":"#173177"
+           },
+           "keynote3": {
+               "value":"2014年9月22日",
+               "color":"#173177"
+           },
+           "remark":{
+               "value":"欢迎再次购买！",
+               "color":"#173177"
+           }
+   }
+}
+data内是
+// 模版内某个 .DATA 的值
+type DataItem struct {
+	Value string `json:"value"`
+	Color string `json:"color,omitempty"`
+}
+对于第一个就是content
+然后,我们要编写一个函数,传入
+ToUser和TemplateId,组合一个url和miniprogram是空的,
+将传入的string形式的value组合到Data是一个符合content的,颜色是黑色的,Value是content的内容,返回TemplateMessage2结构体的函数
+
+type TemplateMessage2 struct {
+	ToUser      string       `json:"touser"`                // 必须, 接受者OpenID
+	TemplateId  string       `json:"template_id"`           // 必须, 模版ID
+	URL         string       `json:"url,omitempty"`         // 可选, 用户点击后跳转的URL, 该URL必须处于开发者在公众平台网站中设置的域中
+	MiniProgram *MiniProgram `json:"miniprogram,omitempty"` // 可选, 跳小程序所需数据，不需跳小程序可不用传该数据
+	Data        interface{}  `json:"data"`                  // 必须, 模板数据, struct 或者 *struct, encoding/json.Marshal 后满足格式要求.
+}
