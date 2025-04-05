@@ -132,6 +132,7 @@ type Settings struct {
 	LongQueryCommands      []string             `yaml:"long_query_commands"`
 	SubScribeMsgType       int                  `yaml:"subscribe_msg_type"`
 	SubscribeMsgs          []string             `yaml:"subscribe_msgs"`
+	StringOb11             bool                 `yaml:"string_ob11"`
 }
 
 // LoadConfig 从文件中加载配置并初始化单例配置
@@ -1653,4 +1654,16 @@ func GetSubscribeMsgs() []string {
 		return instance.Settings.SubscribeMsgs
 	}
 	return nil // 返回nil，如果instance为nil
+}
+
+// 获取StringOb11的值
+func GetStringOb11() bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if instance == nil {
+		fmt.Println("Warning: instance is nil when trying to StringOb11 value.")
+		return false
+	}
+	return instance.Settings.StringOb11
 }

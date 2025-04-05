@@ -16,7 +16,9 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/callapi"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/config"
+	"github.com/hoshinonyaruko/gensokyo-wxmp/idmap"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/mylog"
+	"github.com/hoshinonyaruko/gensokyo-wxmp/praser"
 )
 
 var (
@@ -25,6 +27,12 @@ var (
 	// generalChan 用于处理那些echo值不是字符串的消息
 	generalChan = make(chan callapi.ActionMessage, 10)
 	mapMutex    sync.Mutex
+)
+
+// pendingMessages：新增，用于存储超时后/重复的消息
+var (
+	pendingMutex    sync.Mutex
+	pendingMessages = make(map[string][]callapi.ActionMessage)
 )
 
 type WebSocketClient struct {
@@ -214,36 +222,33 @@ func (client *WebSocketClient) recvMessage(msg []byte) {
 	mapMutex.Lock()
 	defer mapMutex.Unlock()
 
-	// 检查是否启用了双向Echo模式
-	twoWayEchoEnabled := config.GetTwoWayEcho()
-
-	if !twoWayEchoEnabled {
-		// 如果双向Echo未启用，所有消息都发送到通用通道
-		generalChan <- message
-		return // 早期返回，避免执行后续逻辑
-	}
-
-	// 如果双向Echo启用，根据echo的值处理消息
-	echoValue, ok := message.Echo.(string)
-	if !ok {
-		// 如果echo不是字符串，将消息发送到通用通道
-		generalChan <- message
+	var echoKey string
+	if !config.GetStringOb11() {
+		echoKey, _ = idmap.RetrieveRowByIDv2(message.Params.UserID.(string))
 	} else {
-		if ch, ok := echoToChanMap[echoValue]; ok {
-			// 如果找到匹配的信道，则发送消息
-			ch <- message
-			// 从映射中移除已处理的echo
-			delete(echoToChanMap, echoValue)
-		}
+		// 如果双向Echo启用，根据echo的值处理消息
+		echoKey, _ = message.Params.UserID.(string)
 	}
+
+	if ch, ok := echoToChanMap[echoKey]; ok {
+		// 如果找到匹配的信道，则发送消息
+		ch <- message
+		// 从映射中移除已处理的echo
+		delete(echoToChanMap, echoKey)
+	} else {
+		pendingMutex.Lock()
+		pendingMessages[echoKey] = append(pendingMessages[echoKey], message)
+		pendingMutex.Unlock()
+	}
+
 }
 
 // WaitForActionMessage 等待特定echo值的消息或超时
-func WaitForActionMessage(echo string, timeout time.Duration) (*callapi.ActionMessage, error) {
+func WaitForActionMessage(userid string, timeout time.Duration) (*callapi.ActionMessage, error) {
 	ch := make(chan callapi.ActionMessage, 1)
 
 	mapMutex.Lock()
-	echoToChanMap[echo] = ch
+	echoToChanMap[userid] = ch
 	mapMutex.Unlock()
 
 	select {
@@ -251,10 +256,64 @@ func WaitForActionMessage(echo string, timeout time.Duration) (*callapi.ActionMe
 		return &msg, nil
 	case <-time.After(timeout):
 		mapMutex.Lock()
-		delete(echoToChanMap, echo)
+		delete(echoToChanMap, userid)
 		mapMutex.Unlock()
-		return nil, fmt.Errorf("timeout waiting for message with echo %s", echo)
+		return nil, fmt.Errorf("timeout waiting for message with echo %s", userid)
 	}
+}
+
+// GetPendingMessages：获取并删除最近的溢出消息，并检查字数是否超过2047
+func GetPendingMessages(userid string, clear bool, currentLength int) ([]callapi.ActionMessage, int, error) {
+	// 锁定 pendingMessages 保证并发安全
+	pendingMutex.Lock()
+	defer pendingMutex.Unlock()
+
+	// 获取当前用户的所有溢出消息
+	msgs := pendingMessages[userid]
+	if len(msgs) == 0 {
+		// 没有待处理的消息，直接返回
+		return nil, currentLength, nil
+	}
+
+	// 结果数组，用于存储叠加的历史消息
+	var pendingMsgsToReturn []callapi.ActionMessage
+	totalLength := currentLength
+
+	var ii int
+	// 遍历所有历史消息
+	for i := 0; i < len(msgs); i++ {
+		// 获取当前消息（逐条处理）
+		msg := msgs[i]
+
+		// 将消息的内容提取出来
+		var messageContent string
+		if msgStr, ok := msg.Params.Message.(string); ok {
+			messageContent = msgStr
+		} else {
+			// 如果不是 string 类型，调用解析函数处理
+			messageContent = praser.ParseMessageContent(msg.Params.Message)
+		}
+
+		// 检查当前字数是否超过2047
+		if totalLength+len(messageContent)+len("-----历史信息----") > 2047 {
+			// 如果叠加后超出字数限制，则停止叠加
+			break
+		}
+
+		// 累加历史信息
+		pendingMsgsToReturn = append(pendingMsgsToReturn, msg)
+		totalLength += len(messageContent) + len("-----历史信息----")
+		ii++
+	}
+
+	// 如果需要清空历史消息，将其清除
+	if clear {
+		// 使用切片删除已处理的消息，确保更新 pendingMessages
+		pendingMessages[userid] = msgs[ii:]
+	}
+
+	// 返回叠加的历史消息和当前总字数
+	return pendingMsgsToReturn, totalLength, nil
 }
 
 func WaitForGeneralMessage(timeout time.Duration) (*callapi.ActionMessage, error) {

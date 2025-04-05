@@ -1,0 +1,69 @@
+请你在这里,为我编写一个将mdContentBytes byte类型数据转为messageText string的函数,
+
+mdContentBytes byte可以传入下方的函数内,
+					
+func parseMDData(mdData []byte) (*dto.Markdown, *keyboard.MessageKeyboard, error) {
+然后返回的是一个,
+
+type Markdown struct {
+    TemplateID       int               `json:"template_id,omitempty"`        // 模版 id
+    CustomTemplateID string            `json:"custom_template_id,omitempty"` // 模版 id 群
+    Params           []*MarkdownParams `json:"params,omitempty"`             // 模版参数
+    Content          string            `json:"content,omitempty"`            // 原生 markdown
+}
+和
+type MessageKeyboard struct {
+    ID      string          `json:"id,omitempty"`      // 消息按钮组件模板 ID
+    Content *CustomKeyboard `json:"content,omitempty"` // 消息按钮组件自定义内容
+}
+还有
+// CustomKeyboard 自定义 Keyboard
+type CustomKeyboard struct {
+	Rows []*Row `json:"rows,omitempty"` // 行数组
+}这些结构体,都位于Processor包下
+
+我们要把这两者首先判断各自是否是nil,可能存在markdown不是nil,但是kb是nil的情况.
+然后,我们首先把Markdown处理成一个普通文本,方法很简单
+提取出来Markdown.Content即可,然后做一个替换,我们要替换所有这种模式的内容,其中悬赏令刷新可是任何内容,并且可能存在多个
+将语法<qqbot-cmd-input text='悬赏令刷新' show='悬赏令刷新' reference='false' />这个模式,替换为<a href="weixin://bizmsgmenu?msgmenucontent=号卡办理&msgmenuid=0">号卡办理</a>这个模式,
+不要使用正则,进行准确的文本层面处理,
+然后对于CustomKeyboard,每一个按钮,我们按照原有的布局,转换为同样布局,但是是文本的形态,的<a href="weixin://bizmsgmenu?msgmenucontent=号卡办理&msgmenuid=0">号卡办理</a>
+具体为
+<a href="weixin://bizmsgmenu?msgmenucontent=这里是RenderData.label&msgmenuid=0">这里是action.Data</a>
+保持布局的方式是,比如原来是有多少row,那么组合成文本就有多少行
+
+// Row 每行结构
+type Row struct {
+	Buttons []*Button `json:"buttons,omitempty"` // 每行按钮
+}
+
+// Button 单个按纽
+type Button struct {
+	ID         string      `json:"id,omitempty"`          // 按钮 ID
+	RenderData *RenderData `json:"render_data,omitempty"` // 渲染展示字段
+	Action     *Action     `json:"action,omitempty"`      // 该按纽操作相关字段
+}
+
+// RenderData  按纽渲染展示
+type RenderData struct {
+	Label        string `json:"label,omitempty"`         // 按纽上的文字
+	VisitedLabel string `json:"visited_label,omitempty"` // 点击后按纽上文字
+	Style        int    `json:"style,omitempty"`         // 按钮样式，0：灰色线框，1：蓝色线框
+}
+
+// Action 按纽点击操作
+type Action struct {
+	Type                 ActionType  `json:"type,omitempty"`                     // 操作类型 设置 0 跳转按钮：http 或 小程序 客户端识别 scheme，设置 1 回调按钮：回调后台接口, data 传给后台，设置 2 指令按钮：自动在输入框插入 @bot data
+	Permission           *Permission `json:"permission,omitempty"`               // 可操作
+	ClickLimit           uint32      `json:"click_limit,omitempty"`              // 可点击的次数, 默认不限
+	Data                 string      `json:"data,omitempty"`                     // 操作相关数据
+	AtBotShowChannelList bool        `json:"at_bot_show_channel_list,omitempty"` // false:当前 true:弹出展示子频道选择器
+	UnsupportTips        string      `json:"unsupport_tips"`                     //2024-1-12 新增字段
+	AnChor               int         `json:"anchor"`                             //本字段仅在指令按钮下有效，设置后后会忽略 action.enter 配置。设置为 1 时 ，点击按钮自动唤起启手Q选图器，其他值暂无效果。（仅支持手机端版本 8983+ 的单聊场景，桌面端不支持）
+	Enter                bool        `json:"enter"`                              //指令按钮可用，点击按钮后直接自动发送 data，默认 false。支持版本 8983
+	Reply                bool        `json:"reply"`                              //指令按钮可用，指令是否带引用回复本消息，默认 false。支持版本 8983
+}
+
+
+
+messageText = 

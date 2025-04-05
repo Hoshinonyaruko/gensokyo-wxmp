@@ -20,6 +20,9 @@ func ProcessGroupMessage(data *core.Context, Wsclient []*wsclient.WebSocketClien
 	// 获取s
 	s := core.GetGlobalS()
 
+	// 打印data结构体
+	//PrintStructWithFieldNames(data)
+
 	// 转换appid
 	AppIDString := config.GetWxAppId()
 
@@ -27,19 +30,6 @@ func ProcessGroupMessage(data *core.Context, Wsclient []*wsclient.WebSocketClien
 	echostr := AppIDString + "_" + strconv.FormatInt(s, 10)
 	var userid64 int64
 	var GroupID64 int64
-
-	// 映射str的GroupID到int
-	GroupID64, err = idmap.StoreIDv2(data.MixedMsg.MsgHeader.ToUserName)
-	if err != nil {
-		mylog.Errorf("failed to convert ChannelID to int: %v", err)
-
-	}
-	// 映射str的userid到int
-	userid64, err = idmap.StoreIDv2(data.MixedMsg.MsgHeader.FromUserName)
-	if err != nil {
-		mylog.Printf("Error storing ID: %v", err)
-
-	}
 
 	selfid := config.ExtractAndTruncateDigits(AppIDString)
 
@@ -76,71 +66,158 @@ func ProcessGroupMessage(data *core.Context, Wsclient []*wsclient.WebSocketClien
 	// 	IsBindedUserId = idmap.CheckValuev2(userid64)
 	// 	IsBindedGroupId = idmap.CheckValuev2(GroupID64)
 	// }
-	groupMsg := OnebotGroupMessage{
-		RawMessage:  messageText,
-		Message:     segmentedMessages,
-		MessageID:   123,
-		GroupID:     GroupID64,
-		MessageType: "group",
-		PostType:    "message",
-		SelfID:      id64,
-		UserID:      userid64,
-		Sender: Sender{
-			UserID: userid64,
-			Sex:    "0",
-			Age:    0,
-			Area:   "0",
-			Level:  "0",
-		},
-		SubType: "normal",
-		Time:    time.Now().Unix(),
-	}
-	//增强配置
-	if !config.GetNativeOb11() {
-		groupMsg.RealMessageType = "group"
-		groupMsg.IsBindedUserId = IsBindedUserId
-		groupMsg.IsBindedGroupId = IsBindedGroupId
-		// if IsBindedUserId {
-		// 	//groupMsg.Avatar, _ = GenerateAvatarURL(userid64)
-		// }
-	}
-	//根据条件判断是否增加nick和card
-	var CaN = config.GetCardAndNick()
-	if CaN != "" {
-		groupMsg.Sender.Nickname = CaN
-		groupMsg.Sender.Card = CaN
-	}
-	// 根据条件判断是否添加Echo字段
-	if config.GetTwoWayEcho() {
-		groupMsg.Echo = echostr
-		//用向应用端(如果支持)发送echo,来确定客户端的send_msg对应的触发词原文
-		echo.AddMsgIDv3(AppIDString, echostr, messageText)
-	}
-	// 获取MasterID数组
-	masterIDs := config.GetMasterID()
 
-	// 判断userid64是否在masterIDs数组里
-	isMaster := false
-	for _, id := range masterIDs {
-		if strconv.FormatInt(userid64, 10) == id {
-			isMaster = true
-			break
+	// 是否使用string形式上报
+	if !config.GetStringOb11() {
+
+		// 映射str的GroupID到int
+		GroupID64, err = idmap.StoreIDv2(data.MixedMsg.MsgHeader.ToUserName)
+		if err != nil {
+			mylog.Errorf("failed to convert ChannelID to int: %v", err)
 		}
-	}
+		// 映射str的userid到int
+		userid64, err = idmap.StoreIDv2(data.MixedMsg.MsgHeader.FromUserName)
+		if err != nil {
+			mylog.Printf("Error storing ID: %v", err)
 
-	// 根据isMaster的值为groupMsg的Sender赋值role字段
-	if isMaster {
-		groupMsg.Sender.Role = "owner"
+		}
+
+		groupMsg := OnebotGroupMessage{
+			RawMessage:  messageText,
+			Message:     segmentedMessages,
+			MessageID:   123,
+			GroupID:     GroupID64,
+			MessageType: "group",
+			PostType:    "message",
+			SelfID:      id64,
+			UserID:      userid64,
+			Sender: Sender{
+				UserID: userid64,
+				Sex:    "0",
+				Age:    0,
+				Area:   "0",
+				Level:  "0",
+			},
+			SubType: "normal",
+			Time:    time.Now().Unix(),
+		}
+		//增强配置
+		if !config.GetNativeOb11() {
+			groupMsg.RealMessageType = "group"
+			groupMsg.IsBindedUserId = IsBindedUserId
+			groupMsg.IsBindedGroupId = IsBindedGroupId
+			// if IsBindedUserId {
+			// 	//groupMsg.Avatar, _ = GenerateAvatarURL(userid64)
+			// }
+		}
+		//根据条件判断是否增加nick和card
+		var CaN = config.GetCardAndNick()
+		if CaN != "" {
+			groupMsg.Sender.Nickname = CaN
+			groupMsg.Sender.Card = CaN
+		}
+		// 根据条件判断是否添加Echo字段
+		if config.GetTwoWayEcho() {
+			groupMsg.Echo = echostr
+			//用向应用端(如果支持)发送echo,来确定客户端的send_msg对应的触发词原文
+			echo.AddMsgIDv3(AppIDString, echostr, messageText)
+		}
+		// 获取MasterID数组
+		masterIDs := config.GetMasterID()
+
+		// 判断userid64是否在masterIDs数组里
+		isMaster := false
+		for _, id := range masterIDs {
+			if strconv.FormatInt(userid64, 10) == id {
+				isMaster = true
+				break
+			}
+		}
+
+		// 根据isMaster的值为groupMsg的Sender赋值role字段
+		if isMaster {
+			groupMsg.Sender.Role = "owner"
+		} else {
+			groupMsg.Sender.Role = "member"
+		}
+
+		// 调试
+		PrintStructWithFieldNames(groupMsg)
+
+		// Convert OnebotGroupMessage to map and send
+		groupMsgMap := structToMap(groupMsg)
+		//上报信息到onebotv11应用端(正反ws)
+		BroadcastMessageToAll(groupMsgMap, Wsclient)
 	} else {
-		groupMsg.Sender.Role = "member"
+		groupMsg := OnebotGroupMessageS{
+			RawMessage:  messageText,
+			Message:     segmentedMessages,
+			MessageID:   "",
+			GroupID:     data.MixedMsg.MsgHeader.ToUserName,
+			MessageType: "group",
+			PostType:    "message",
+			SelfID:      id64,
+			UserID:      data.MixedMsg.MsgHeader.FromUserName,
+			Sender: Sender{
+				UserID: userid64,
+				Sex:    "0",
+				Age:    0,
+				Area:   "0",
+				Level:  "0",
+			},
+			SubType:     "normal",
+			Time:        time.Now().Unix(),
+			RealGroupID: data.MixedMsg.MsgHeader.ToUserName,
+			RealUserID:  data.MixedMsg.MsgHeader.FromUserName,
+		}
+		//增强配置
+		if !config.GetNativeOb11() {
+			groupMsg.RealMessageType = "group"
+			groupMsg.IsBindedUserId = IsBindedUserId
+			groupMsg.IsBindedGroupId = IsBindedGroupId
+			// if IsBindedUserId {
+			// 	//groupMsg.Avatar, _ = GenerateAvatarURL(userid64)
+			// }
+		}
+		//根据条件判断是否增加nick和card
+		var CaN = config.GetCardAndNick()
+		if CaN != "" {
+			groupMsg.Sender.Nickname = CaN
+			groupMsg.Sender.Card = CaN
+		}
+		// 根据条件判断是否添加Echo字段
+		if config.GetTwoWayEcho() {
+			groupMsg.Echo = echostr
+			//用向应用端(如果支持)发送echo,来确定客户端的send_msg对应的触发词原文
+			echo.AddMsgIDv3(AppIDString, echostr, messageText)
+		}
+		// 获取MasterID数组
+		masterIDs := config.GetMasterID()
+
+		// 判断userid64是否在masterIDs数组里
+		isMaster := false
+		for _, id := range masterIDs {
+			if strconv.FormatInt(userid64, 10) == id {
+				isMaster = true
+				break
+			}
+		}
+
+		// 根据isMaster的值为groupMsg的Sender赋值role字段
+		if isMaster {
+			groupMsg.Sender.Role = "owner"
+		} else {
+			groupMsg.Sender.Role = "member"
+		}
+
+		// 调试
+		PrintStructWithFieldNames(groupMsg)
+
+		// Convert OnebotGroupMessage to map and send
+		groupMsgMap := structToMap(groupMsg)
+		//上报信息到onebotv11应用端(正反ws)
+		BroadcastMessageToAll(groupMsgMap, Wsclient)
 	}
 
-	// 调试
-	PrintStructWithFieldNames(groupMsg)
-
-	// Convert OnebotGroupMessage to map and send
-	groupMsgMap := structToMap(groupMsg)
-	//上报信息到onebotv11应用端(正反ws)
-	BroadcastMessageToAll(groupMsgMap, Wsclient)
 	return echostr, err
 }
