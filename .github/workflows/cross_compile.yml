@@ -70,7 +70,7 @@ jobs:
         quasar build
 
     - name: Cache Android NDK
-      uses: actions/cache@v2
+      uses: actions/cache@v3
       with:
         path: |
           ${{ github.workspace }}/android-ndk-r21e
