@@ -1,4 +1,4 @@
-package template
+package templateWX
 
 import (
 	"encoding/json"

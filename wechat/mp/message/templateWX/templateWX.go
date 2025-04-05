@@ -1,4 +1,4 @@
-package template
+package templateWX
 
 import (
 	"github.com/chanxuehong/wechat/mp/core"
