@@ -461,10 +461,10 @@ func textMsgHandler(ctx *core.Context) {
 		strmessage = msgStr
 	} else {
 		// 如果不是string，调用parseMessage函数处理
-		strmessage = praser.ParseMessageContent(message.Params.Message)
+		strmessage = praser.ParseMessageContent(message.Params.Message, false)
 	}
 	// 调用信息处理函数
-	messageType, result, err := ProcessMessage(strmessage, wechatClient)
+	messageType, result, err := ProcessMessage(strmessage, wechatClient, message)
 	if err != nil {
 		// 处理错误情况
 		// 例如，可以回复一个文本消息表明无法处理该消息
@@ -474,27 +474,33 @@ func textMsgHandler(ctx *core.Context) {
 		return
 	}
 
-	// 获取并叠加历史信息，传入当前字数（这里假设当前字数为0）
-	pendingMsgsToReturn, _, err := wsclient.GetPendingMessages(msg.FromUserName, true, len(result.(string)))
-	if err != nil {
-		log.Printf("Error getting pending messages: %v", err)
-		// 如果无法获取历史消息，就直接处理当前的消息
-		pendingMsgsToReturn = nil
-	}
-
-	// 遍历所有历史消息，并叠加到 result 前
-	for _, message := range pendingMsgsToReturn {
-		var historyContent string
-		// 处理历史消息内容
-		if msgStr, ok := message.Params.Message.(string); ok {
-			historyContent = msgStr
-		} else {
-			// 如果不是string类型，调用parseMessage函数处理
-			historyContent = praser.ParseMessageContent(message.Params.Message)
+	// 只在type=1叠加文字历史信息
+	if messageType == 1 {
+		var pendingMsgsToReturn []callapi.ActionMessage
+		if resultStr, ok := result.(string); ok {
+			// 获取并叠加历史信息，传入当前字数（这里假设当前字数为0）
+			pendingMsgsToReturn, _, err = wsclient.GetPendingMessages(msg.FromUserName, true, len(resultStr))
+			if err != nil {
+				log.Printf("Error getting pending messages: %v", err)
+				// 如果无法获取历史消息，就直接处理当前的消息
+				pendingMsgsToReturn = nil
+			}
 		}
 
-		// 将历史信息叠加到当前的 result 前
-		result = fmt.Sprintf("%s\n-----历史信息----\n%s", historyContent, result)
+		// 遍历所有历史消息，并叠加到 result 前
+		for _, message := range pendingMsgsToReturn {
+			var historyContent string
+			// 处理历史消息内容
+			if msgStr, ok := message.Params.Message.(string); ok {
+				historyContent = msgStr
+			} else {
+				// 如果不是string类型，调用parseMessage函数处理
+				historyContent = praser.ParseMessageContent(message.Params.Message, true)
+			}
+
+			// 将历史信息叠加到当前的 result 前
+			result = fmt.Sprintf("%s\n-----历史信息----\n%s", historyContent, result)
+		}
 	}
 
 	// 根据信息处理函数的返回类型决定如何回复
@@ -569,6 +575,8 @@ func defaultEventHandler(ctx *core.Context) {
 		// 从列表中随机选择一条消息
 		randomMsg := subscribeMsgs[rand.Intn(len(subscribeMsgs))]
 
+		var message *callapi.ActionMessage
+
 		switch subscribeMsgType {
 		case 1:
 			log.Printf("Sending subscribe message: %s", randomMsg)
@@ -601,7 +609,7 @@ func defaultEventHandler(ctx *core.Context) {
 				msgIdToEchoMap[msg.FromUserName] = userID
 				msgIdToEchoMapMutex.Unlock()
 			}
-			var message *callapi.ActionMessage
+
 			// 首先获取超时时间和长查询命令列表
 			timeout := config.GetTimeOut()
 			longQueryCommands := config.GetLongQueryCommands()
@@ -639,7 +647,7 @@ func defaultEventHandler(ctx *core.Context) {
 				randomMsg = msgStr
 			} else {
 				// 如果不是string，调用parseMessage函数处理
-				randomMsg = praser.ParseMessageContent(message.Params.Message)
+				randomMsg = praser.ParseMessageContent(message.Params.Message, false)
 			}
 			//发送成功回执
 			handlers.SendResponse(wsClients, err, message)
@@ -651,7 +659,7 @@ func defaultEventHandler(ctx *core.Context) {
 		}
 
 		// 调用信息处理函数
-		messageType, result, err := ProcessMessage(randomMsg, wechatClient)
+		messageType, result, err := ProcessMessage(randomMsg, wechatClient, message)
 		if err != nil {
 			// 处理错误情况
 			// 例如，可以回复一个文本消息表明无法处理该消息
@@ -700,7 +708,7 @@ func wxCallbackHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 // ProcessMessage 处理信息并归类
-func ProcessMessage(input string, clt *core.Client) (int, interface{}, error) {
+func ProcessMessage(input string, clt *core.Client, rawMsg *callapi.ActionMessage) (int, interface{}, error) {
 	// 正则表达式定义
 	httpUrlImagePattern := regexp.MustCompile(`\[CQ:image,file=http://(.+?)\]`)
 	httpsUrlImagePattern := regexp.MustCompile(`\[CQ:image,file=https://(.+?)\]`)
@@ -745,7 +753,12 @@ func ProcessMessage(input string, clt *core.Client) (int, interface{}, error) {
 			imageUrls = append(imageUrls, "https://"+match[1])
 		}
 
-		if len(imageUrls) == 1 {
+		// 替换掉所有图片标签
+		input = httpUrlImagePattern.ReplaceAllString(input, "")
+		input = httpsUrlImagePattern.ReplaceAllString(input, "")
+
+		// 如果替换后内容为空 且只有一个图片
+		if len(imageUrls) == 1 && input == "" {
 			// 单图片信息
 			mediaId, err := images.ProcessInput(imageUrls[0], clt, "png")
 			if err != nil {
@@ -753,18 +766,32 @@ func ProcessMessage(input string, clt *core.Client) (int, interface{}, error) {
 			}
 			return 2, mediaId, nil // 纯图片信息
 		} else {
-			// 图文信息
-			var articles []response.Article
-			for _, url := range imageUrls {
-				articles = append(articles, response.Article{
-					PicURL: url, // 这里的url已经是包含正确协议头的完整URL
-				})
+			// 图文信息 发不出来,求懂得大佬看看
+			// var articles []response.Article
+			// for _, url := range imageUrls {
+			// 	articles = append(articles, response.Article{
+			// 		PicURL: url, // 这里的url已经是包含正确协议头的完整URL
+			// 	})
+			// }
+			// articles[0].Title = "图文信息"
+			// articles[0].Description = input
+			// articles[0].URL = "weixin://bizmsgmenu?msgmenucontent=你好"
+			// news := response.News{
+			// 	ArticleCount: len(articles),
+			// 	Articles:     articles,
+			// }
+			// 单图片信息
+			mediaId, err := images.ProcessInput(imageUrls[0], clt, "png")
+			if err != nil {
+				return 0, nil, err
 			}
-			news := response.News{
-				ArticleCount: len(articles),
-				Articles:     articles,
-			}
-			return 4, news, nil // 图文信息
+
+			fmt.Printf("这里的mediaID:%s", mediaId)
+
+			// 将文字部分加入到堆积的事件中
+			wsclient.AddMessageToPending(rawMsg.Params.UserID.(string), rawMsg)
+			return 2, mediaId, nil // 纯图片信息
+			//return 4, news, nil // 图文信息
 		}
 	}
 

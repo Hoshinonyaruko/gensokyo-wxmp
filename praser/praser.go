@@ -10,7 +10,7 @@ import (
 	"github.com/hoshinonyaruko/gensokyo-wxmp/mylog"
 )
 
-func ParseMessageContent(message interface{}) string {
+func ParseMessageContent(message interface{}, removeMDPic bool) string {
 	messageText := ""
 
 	switch message := message.(type) {
@@ -122,6 +122,12 @@ func ParseMessageContent(message interface{}) string {
 					messageText, err = parseMDData(mdContentBytes)
 					if err != nil {
 						fmt.Print(err)
+					}
+					// 是否移除md图片(搞不懂wx怎么发图文,在只能把图文信息的文字抽出来作为历史信息的时候,发历史信息就要移除图片.)
+					if !removeMDPic {
+						messageText = ConvertMarkdownToCQImage(messageText)
+					} else {
+						messageText = RemoveMarkdownImages(messageText)
 					}
 					fmt.Print(messageText)
 				} else if mdContentStr, isString := mdContent.(string); isString {
@@ -387,4 +393,32 @@ func parseMDDataPre(mdData []byte) (*Markdown, *MessageKeyboard, error) {
 	}
 
 	return md, kb, nil
+}
+
+// 将Markdown图片链接转换为CQ:image格式
+func ConvertMarkdownToCQImage(text string) string {
+	// 定义正则表达式，匹配Markdown图片链接中的URL
+	mdImagePattern := regexp.MustCompile(`!\[.*?\]\((http[s]?:\/\/[^\)]+)\)`)
+
+	// 使用正则替换将Markdown图片链接转换为CQ:image格式
+	result := mdImagePattern.ReplaceAllStringFunc(text, func(match string) string {
+		// 提取URL部分
+		url := mdImagePattern.FindStringSubmatch(match)[1]
+
+		// 返回CQ:image格式
+		return fmt.Sprintf("[CQ:image,file=%s]", url)
+	})
+
+	return result
+}
+
+// RemoveMarkdownImages 移除Markdown图片链接
+func RemoveMarkdownImages(text string) string {
+	// 定义正则表达式，匹配Markdown图片链接
+	mdImagePattern := regexp.MustCompile(`!\[.*?\]\((http[s]?:\/\/[^\)]+)\)`)
+
+	// 使用正则替换将Markdown图片链接移除
+	result := mdImagePattern.ReplaceAllString(text, "")
+
+	return result
 }
