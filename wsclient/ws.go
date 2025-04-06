@@ -243,6 +243,19 @@ func (client *WebSocketClient) recvMessage(msg []byte) {
 
 }
 
+// AddMessageToPending 向指定 echoKey 对应的 pendingMessages 中添加一条消息
+func AddMessageToPending(echoKey string, message *callapi.ActionMessage) {
+	// 锁定 pendingMessages 保证并发安全
+	pendingMutex.Lock()
+	defer pendingMutex.Unlock()
+
+	// 将消息添加到对应的 echoKey 的 pendingMessages 中
+	pendingMessages[echoKey] = append(pendingMessages[echoKey], *message)
+
+	// 打印日志，确保信息已被添加
+	mylog.Printf("Added message to pendingMessages for echoKey '%s'. Current queue length: %d", echoKey, len(pendingMessages[echoKey]))
+}
+
 // WaitForActionMessage 等待特定echo值的消息或超时
 func WaitForActionMessage(userid string, timeout time.Duration) (*callapi.ActionMessage, error) {
 	ch := make(chan callapi.ActionMessage, 1)
@@ -291,7 +304,7 @@ func GetPendingMessages(userid string, clear bool, currentLength int) ([]callapi
 			messageContent = msgStr
 		} else {
 			// 如果不是 string 类型，调用解析函数处理
-			messageContent = praser.ParseMessageContent(msg.Params.Message)
+			messageContent = praser.ParseMessageContent(msg.Params.Message, true)
 		}
 
 		// 检查当前字数是否超过2047
