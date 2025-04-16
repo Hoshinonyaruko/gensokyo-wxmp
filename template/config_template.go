@@ -163,6 +163,10 @@ settings:
   a_OSS_AccessKeySecret : ""
   a_audit : false                   #是否审核图片 请先开通阿里云内容安全需企业认证。具体操作 请参见https://help.aliyun.com/document_detail/69806.html
 
+  #腾讯对话开放平台配置
+  chatbot_appid : ""                #https://chatbot.weixin.qq.com/
+  chatbot_token : ""
+  chatbot_aeskey : ""
 `
 const Logo = `
 '                                                                                                      
