@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -26,7 +25,6 @@ import (
 	"github.com/chanxuehong/wechat/mp/menu"
 	"github.com/chanxuehong/wechat/mp/message/callback/request"
 	"github.com/chanxuehong/wechat/mp/message/callback/response"
-	"github.com/chanxuehong/wechat/mp/message/templateWX"
 	"github.com/fatih/color"
 	"github.com/gin-gonic/gin"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/Processor"
@@ -358,19 +356,19 @@ func main() {
 	cyan.Printf("欢迎来到Gensokyo, 公网控制台地址(需开放端口): %s\n", webuiURLv2)
 
 	// 获取模板列表
-	templateList, err := templateWX.GetAllPrivateTemplate(wechatClient)
-	if err != nil {
-		log.Fatalf("Error getting template list: %v", err)
-	}
+	// templateList, err := templateWX.GetAllPrivateTemplate(wechatClient)
+	// if err != nil {
+	// 	log.Fatalf("Error getting template list: %v", err)
+	// }
 
-	// 将 templateList 转换为 JSON 格式
-	templateListJSON, err := json.MarshalIndent(templateList, "", "  ")
-	if err != nil {
-		log.Fatalf("Error marshaling template list: %v", err)
-	}
+	// // 将 templateList 转换为 JSON 格式
+	// templateListJSON, err := json.MarshalIndent(templateList, "", "  ")
+	// if err != nil {
+	// 	log.Fatalf("Error marshaling template list: %v", err)
+	// }
 
-	// 打印 JSON 格式的数据
-	fmt.Println("获取到的模板:" + string(templateListJSON))
+	// // 打印 JSON 格式的数据
+	// fmt.Println("获取到的模板:" + string(templateListJSON))
 
 	// 使用通道来等待信号
 	sigCh := make(chan os.Signal, 1)
