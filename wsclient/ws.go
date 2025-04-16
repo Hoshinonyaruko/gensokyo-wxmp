@@ -17,6 +17,7 @@ import (
 	"github.com/hoshinonyaruko/gensokyo-wxmp/callapi"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/config"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/idmap"
+	"github.com/hoshinonyaruko/gensokyo-wxmp/multid"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/mylog"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/praser"
 )
@@ -219,6 +220,11 @@ func (client *WebSocketClient) recvMessage(msg []byte) {
 		return
 	}
 
+	// string模式支持bind
+	if config.GetStringOb11() {
+		message.Params.UserID = multid.GetOriginIDFromActiveID(message.Params.UserID.(string))
+	}
+
 	mapMutex.Lock()
 	defer mapMutex.Unlock()
 
@@ -310,6 +316,8 @@ func GetPendingMessages(userid string, clear bool, currentLength int) ([]callapi
 		// 检查当前字数是否超过2047
 		if totalLength+len(messageContent)+len("-----历史信息----") > 2047 {
 			// 如果叠加后超出字数限制，则停止叠加
+			// 删除该条消息
+			pendingMessages[userid] = append(msgs[:i], msgs[i+1:]...)
 			break
 		}
 

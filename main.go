@@ -35,6 +35,7 @@ import (
 	"github.com/hoshinonyaruko/gensokyo-wxmp/handlers"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/idmap"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/images"
+	"github.com/hoshinonyaruko/gensokyo-wxmp/multid"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/mylog"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/praser"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/server"
@@ -109,6 +110,11 @@ func main() {
 	sys.SetTitle(conf.Settings.Title)
 	webuiURL := config.ComposeWebUIURL(conf.Settings.Lotus)     // 调用函数获取URL
 	webuiURLv2 := config.ComposeWebUIURLv2(conf.Settings.Lotus) // 调用函数获取URL
+
+	//logger
+	logLevel := mylog.GetLogLevelFromConfig(config.GetLogLevel())
+	mylog.NewMyLogAdapter(logLevel, config.GetSaveLogs())
+	multid.Init()
 
 	// 首先注册处理函数
 	http.HandleFunc("/wx_callback", wxCallbackHandler)
@@ -410,6 +416,117 @@ func textMsgHandler(ctx *core.Context) {
 	// 解析信息
 	msg := request.GetText(ctx.MixedMsg)
 
+	// 检查 msg.Content 内容，进行相应处理
+	switch {
+	case msg.Content == "用户列表":
+		// 获取用户列表
+		idMap, err := multid.GetIdMap(msg.FromUserName)
+		if err != nil {
+			// 如果 idMap 为 nil，则需要返回默认文本
+			textContent := "你还没有用户列表, 请联系开发者 2022717137 开通."
+			resp := response.NewText(msg.FromUserName, msg.ToUserName, msg.CreateTime, textContent)
+			err := ctx.AESResponse(resp, 0, "", nil) // aes密文回复
+			if err != nil {
+				log.Print(err.Error())
+			}
+		} else {
+			// 格式化 IdMap 并展示
+			textContent := "用户列表:\n"
+			for i, id := range idMap.AlternativeID {
+				// 使用 fmt.Sprintf 将 i+1 和 id 拼接为字符串并插入到 HTML 标签中
+				keyboard := fmt.Sprintf(`<a href="weixin://bizmsgmenu?msgmenucontent=切换用户 %d&msgmenuid=0">%d[点击切换]</a>`, i+1, i+1)
+				textContent += fmt.Sprintf("%s.\n [%s-%s]\n", keyboard, id, idMap.Names[i])
+			}
+			keyboardv2 := fmt.Sprintf(`<a href="weixin://bizmsgmenu?msgmenucontent=切换用户 %d&msgmenuid=0">换回默认[点击切换]</a>`, 0)
+			textContent += fmt.Sprintf("当前激活的 ID: \n[%s] \n%s", idMap.ActiveID, keyboardv2)
+			resp := response.NewText(msg.FromUserName, msg.ToUserName, msg.CreateTime, textContent)
+			err := ctx.AESResponse(resp, 0, "", nil) // aes密文回复
+			if err != nil {
+				log.Print(err.Error())
+			}
+		}
+		return
+	case strings.HasPrefix(msg.Content, "切换用户"):
+		// 处理用户切换
+		newIDIndex := parseNewIDIndex(msg.Content)
+		idMap, err := multid.GetIdMap(msg.FromUserName)
+		if err != nil {
+			// 如果获取 IdMap 失败
+			textContent := "未找到有效的用户列表, 请先获取用户列表或联系开发者."
+			resp := response.NewText(msg.FromUserName, msg.ToUserName, msg.CreateTime, textContent)
+			err := ctx.AESResponse(resp, 0, "", nil) // aes密文回复
+			if err != nil {
+				log.Print(err.Error())
+			}
+			return
+		}
+
+		// 如果 newIDIndex == 0，设置 ActiveID 为 msg.FromUserName
+		if newIDIndex == 0 {
+			idMap.ActiveID = msg.FromUserName
+			// 更新配置
+			err = multid.SetIdMap(msg.FromUserName, idMap)
+			if err != nil {
+				log.Print(err.Error())
+				textContent := "设置 ID 失败，请稍后再试。"
+				resp := response.NewText(msg.FromUserName, msg.ToUserName, msg.CreateTime, textContent)
+				err := ctx.AESResponse(resp, 0, "", nil) // aes密文回复
+				if err != nil {
+					log.Print(err.Error())
+				}
+				return
+			}
+
+			// 返回切换成功消息
+			textContent := fmt.Sprintf("你的当前 ID 已经设置为 %s， 如需新增 ID，请联系开发者 2022717137", idMap.ActiveID)
+			resp := response.NewText(msg.FromUserName, msg.ToUserName, msg.CreateTime, textContent)
+			err := ctx.AESResponse(resp, 0, "", nil) // aes密文回复
+			if err != nil {
+				log.Print(err.Error())
+			}
+			return
+		}
+
+		// 判断新的 ID 是否在 AlternativeID 中
+		if newIDIndex >= 1 && newIDIndex <= len(idMap.AlternativeID) {
+			// 更新 ActiveID
+			idMap.ActiveID = idMap.AlternativeID[newIDIndex-1]
+
+			// 更新配置
+			err = multid.SetIdMap(msg.FromUserName, idMap)
+			if err != nil {
+				log.Print(err.Error())
+				textContent := "设置 ID 失败，请稍后再试。"
+				resp := response.NewText(msg.FromUserName, msg.ToUserName, msg.CreateTime, textContent)
+				err := ctx.AESResponse(resp, 0, "", nil) // aes密文回复
+				if err != nil {
+					log.Print(err.Error())
+				}
+				return
+			}
+
+			// 返回切换成功消息
+			textContent := fmt.Sprintf("你的当前 ID 已经设置为 %s-%s, 如需新增 ID，请联系开发者 2022717137",
+				idMap.ActiveID, idMap.Names[newIDIndex-1])
+			resp := response.NewText(msg.FromUserName, msg.ToUserName, msg.CreateTime, textContent)
+			err := ctx.AESResponse(resp, 0, "", nil) // aes密文回复
+			if err != nil {
+				log.Print(err.Error())
+			}
+		} else {
+			// 提示用户 ID 不在列表中
+			textContent := "指定的 ID 不在用户列表中，请检查并重新输入。"
+			resp := response.NewText(msg.FromUserName, msg.ToUserName, msg.CreateTime, textContent)
+			err := ctx.AESResponse(resp, 0, "", nil) // aes密文回复
+			if err != nil {
+				log.Print(err.Error())
+			}
+		}
+		return
+	default:
+		// 其他消息处理
+	}
+
 	// 根据配置调用相应的处理函数
 	if config.GetGlobalGroupOrPrivate() {
 		_, err = Processor.ProcessGroupMessage(ctx, wsClients)
@@ -506,11 +623,26 @@ func textMsgHandler(ctx *core.Context) {
 	// 根据信息处理函数的返回类型决定如何回复
 	switch messageType {
 	case 1: // 纯文本信息
+
 		textContent := result.(string) // 类型断言
+
+		// 安全审核 // 试了两种,都失败了,一个接口已下线,一个无权限.
+		// SensitiveContentResult, err := chatbot.CheckSensitiveContent(textContent, msg.ToUserName)
+		// if err != nil {
+		// 	fmt.Print(err.Error())
+		// }
+
+		// SensitiveContentResult, err := base.MsgSecCheck(wechatClient, msg.ToUserName, textContent, 4, "", msg.FromUserName, "")
+		// if err != nil {
+		// 	fmt.Print(err.Error())
+		// }
+
+		// fmt.Printf("\n审核结果:%v\n", SensitiveContentResult)
+
 		resp := response.NewText(msg.FromUserName, msg.ToUserName, msg.CreateTime, textContent)
 		err := ctx.AESResponse(resp, 0, "", nil) // aes密文回复
 		if err != nil {
-			fmt.Print(err)
+			fmt.Print(err.Error())
 		}
 
 		// testMsg := templateWX.GenerateTemplateMessage(msg.FromUserName, "Wh355bhldW772LJGL_gxftsX6TLde-_PDUzqDQmkb9k", "测试")
@@ -953,4 +1085,19 @@ func GetRandomReply(replies []string) string {
 	index := rand.Intn(len(replies))
 	// 返回随机选中的回复
 	return replies[index]
+}
+
+func parseNewIDIndex(content string) int {
+	// 定义正则表达式，匹配 "用户切换" 后面的数字
+	re := regexp.MustCompile(`切换用户 (\d+)`)
+	// 查找匹配的字符串
+	matches := re.FindStringSubmatch(content)
+	if len(matches) > 1 {
+		// 将匹配到的数字部分转换为整数
+		idIndex, err := strconv.Atoi(matches[1])
+		if err == nil {
+			return idIndex
+		}
+	}
+	return -1
 }

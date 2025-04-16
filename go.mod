@@ -1,6 +1,8 @@
 module github.com/hoshinonyaruko/gensokyo-wxmp
 
-go 1.21.1
+go 1.23.0
+
+toolchain go1.24.0
 
 replace github.com/chanxuehong/wechat => ./wechat
 
@@ -11,15 +13,18 @@ require (
 	github.com/baidubce/bce-sdk-go v0.9.166
 	github.com/boltdb/bolt v1.3.1
 	github.com/chanxuehong/wechat v0.0.0-00010101000000-000000000000
+	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/fatih/color v1.16.0
+	github.com/fsnotify/fsnotify v1.9.0
 	github.com/gin-gonic/gin v1.9.1
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.1
+	github.com/pkg/errors v0.9.1
 	github.com/shirou/gopsutil v3.21.11+incompatible
 	github.com/tencent-connect/botgo v0.1.6
 	github.com/tencentyun/cos-go-sdk-v5 v0.7.46
 	golang.org/x/net v0.17.0
-	golang.org/x/sys v0.14.0
+	golang.org/x/sys v0.32.0
 	gopkg.in/yaml.v3 v3.0.1
 )
 

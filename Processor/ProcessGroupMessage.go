@@ -11,6 +11,7 @@ import (
 	"github.com/hoshinonyaruko/gensokyo-wxmp/echo"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/handlers"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/idmap"
+	"github.com/hoshinonyaruko/gensokyo-wxmp/multid"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/mylog"
 	"github.com/hoshinonyaruko/gensokyo-wxmp/wsclient"
 )
@@ -149,6 +150,10 @@ func ProcessGroupMessage(data *core.Context, Wsclient []*wsclient.WebSocketClien
 		//上报信息到onebotv11应用端(正反ws)
 		BroadcastMessageToAll(groupMsgMap, Wsclient)
 	} else {
+
+		// 检查userid是否需要转换
+		userID := multid.GetActiveID(data.MixedMsg.MsgHeader.FromUserName)
+
 		groupMsg := OnebotGroupMessageS{
 			RawMessage:  messageText,
 			Message:     segmentedMessages,
@@ -157,7 +162,7 @@ func ProcessGroupMessage(data *core.Context, Wsclient []*wsclient.WebSocketClien
 			MessageType: "group",
 			PostType:    "message",
 			SelfID:      id64,
-			UserID:      data.MixedMsg.MsgHeader.FromUserName,
+			UserID:      userID,
 			Sender: Sender{
 				UserID: userid64,
 				Sex:    "0",
@@ -168,8 +173,9 @@ func ProcessGroupMessage(data *core.Context, Wsclient []*wsclient.WebSocketClien
 			SubType:     "normal",
 			Time:        time.Now().Unix(),
 			RealGroupID: data.MixedMsg.MsgHeader.ToUserName,
-			RealUserID:  data.MixedMsg.MsgHeader.FromUserName,
+			RealUserID:  userID,
 		}
+		
 		//增强配置
 		if !config.GetNativeOb11() {
 			groupMsg.RealMessageType = "group"
