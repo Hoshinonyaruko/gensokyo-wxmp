@@ -184,29 +184,30 @@ type MessageKeyboard struct {
 	Content *CustomKeyboard
 }
 
+// 定义数据结构
 type CustomKeyboard struct {
-	Rows []*Row
+	Rows []*Row `json:"rows"` // 确保 JSON 的字段名与 Go 结构体字段名一致
 }
 
 type Row struct {
-	Buttons []*Button
+	Buttons []*Button `json:"buttons"`
 }
 
 type Button struct {
-	ID         string
-	RenderData *RenderData
-	Action     *Action
+	ID         string      `json:"id"`
+	RenderData *RenderData `json:"render_data"` // 确保正确的字段名
+	Action     *Action     `json:"action"`
 }
 
 type RenderData struct {
-	Label        string
-	VisitedLabel string
-	Style        int
+	Label        string `json:"label"`
+	VisitedLabel string `json:"visited_label"`
+	Style        int    `json:"style"`
 }
 
 type Action struct {
-	Type int
-	Data string
+	Type int    `json:"type"`
+	Data string `json:"data"`
 }
 
 // 去除 <qqbot-at-user id="..." /> 格式的文本
@@ -272,6 +273,10 @@ func parseMarkdownContentV2(content string) string {
 
 // 处理键盘内容，生成文本
 func parseKeyboardContent(keyboard *CustomKeyboard) string {
+
+	// 调用 print 函数打印键盘内容
+	//printKeyboardContent(keyboard)
+
 	var result []string
 	for _, row := range keyboard.Rows {
 		var rowContent []string
@@ -281,9 +286,21 @@ func parseKeyboardContent(keyboard *CustomKeyboard) string {
 				continue
 			}
 
+			var buttonText string
 			label := button.RenderData.Label
 			actionData := button.Action.Data
-			buttonText := fmt.Sprintf(`<a href="weixin://bizmsgmenu?msgmenucontent=%s&msgmenuid=0">%s</a>`, actionData, label)
+			// emoji留出空间
+			if isEmoji(label) {
+				label += "   "
+			}
+
+			// 不是网页的按钮
+			if button.Action.Type != 0 {
+				buttonText = fmt.Sprintf(`<a href="weixin://bizmsgmenu?msgmenucontent=%s&msgmenuid=0">%s</a>`, actionData, label)
+			} else {
+				buttonText = fmt.Sprintf(`<a href="%s">%s</a>`, actionData, label)
+			}
+
 			rowContent = append(rowContent, buttonText)
 		}
 
@@ -294,6 +311,56 @@ func parseKeyboardContent(keyboard *CustomKeyboard) string {
 	}
 	return strings.Join(result, "\n")
 }
+
+// isEmoji 判断给定字符是否是 emoji 符号
+func isEmoji(c string) bool {
+	// 获取字符的 Unicode 码点
+	r := []rune(c)[0]
+
+	// 判断字符是否在 emoji 的 Unicode 范围内
+	// 通过 Unicode 范围判断
+	if (r >= 0x1F600 && r <= 0x1F64F) || // 表情符号
+		(r >= 0x1F300 && r <= 0x1F5FF) || // 符号和图像符号
+		(r >= 0x1F680 && r <= 0x1F6FF) || // 交通工具、交通标志
+		(r >= 0x1F700 && r <= 0x1F77F) || // 符号
+		(r >= 0x1F780 && r <= 0x1F7FF) || // 棋盘格符号
+		(r >= 0x1F800 && r <= 0x1F8FF) || // 杂项符号
+		(r >= 0x1F900 && r <= 0x1F9FF) || // 表情符号
+		(r >= 0x1FA00 && r <= 0x1FA6F) || // 新类型表情符号
+		(r >= 0x1FA70 && r <= 0x1FAFF) { // 更多 emoji
+		return true
+	}
+	// 可以根据需要添加更多范围或特殊符号检测
+	return false
+}
+
+// printFunc 函数用于打印 CustomKeyboard 中的每个键盘的字段内容
+// func printKeyboardContent(keyboard *CustomKeyboard) {
+// 	for i, row := range keyboard.Rows {
+// 		fmt.Printf("Row %d:\n", i)
+// 		for j, button := range row.Buttons {
+// 			fmt.Printf("  Button %d:\n", j)
+// 			if button != nil {
+// 				if button.RenderData != nil {
+// 					fmt.Printf("    RenderData:\n")
+// 					fmt.Printf("      Label: %s\n", button.RenderData.Label)
+// 					fmt.Printf("      VisitedLabel: %s\n", button.RenderData.VisitedLabel)
+// 					fmt.Printf("      Style: %d\n", button.RenderData.Style)
+// 				} else {
+// 					fmt.Println("    RenderData is nil")
+// 				}
+
+// 				if button.Action != nil {
+// 					fmt.Printf("    Action:\n")
+// 					fmt.Printf("      Type: %d\n", button.Action.Type)
+// 					fmt.Printf("      Data: %s\n", button.Action.Data)
+// 				} else {
+// 					fmt.Println("    Action is nil")
+// 				}
+// 			}
+// 		}
+// 	}
+// }
 
 // 主函数，将 Markdown 和 Keyboard 合并成文本
 func parseMDData(mdData []byte) (string, error) {
@@ -316,7 +383,10 @@ func parseMDData(mdData []byte) (string, error) {
 
 	// 处理键盘内容，如果存在
 	if keyboard != nil && keyboard.Content != nil {
+
 		keyboardText := parseKeyboardContent(keyboard.Content)
+
+		//fmt.Printf("开始处理按钮%s\n", keyboardText)
 
 		// 如果键盘文本长度超过2037字符，跳过添加键盘内容
 		if len(messageText) > 2047 {

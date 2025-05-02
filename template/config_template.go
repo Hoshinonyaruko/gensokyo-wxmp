@@ -12,6 +12,7 @@ settings:
   wxEncodedAESKey: "<YOUR_CLIENT_SECRET>"              # 可选; aes加密解密key, 43字节长(base64编码, 去掉了尾部的'='), 安全模式必须设置;
   wxOriId: ""                                          # 可选; 公众号的原始ID(微信公众号管理后台查看), 如果设置了值则该Server只能处理 ToUserName 为该值的公众号的消息(事件);
   wxPort: 80                                           # 默认:80 非80端口需配置nginx 将80端口的任意path 指向所配置端口的/wx_callback端点
+  forwardPort : ["","",""]                             # 配置后,会监听/数字 然后将收到的webhook转发到本地的数字端口的/wx_callback 实现一拖n          
 
   timeOut : 4                                          # 等待反向ws信息超时时间,默认4秒,当超时时,可以触发默认回复,引导用户。
   long_query_commands : ["","",""]                     # 允许一些长时间指令等待更长时间,如gpt,ai绘图,vits语音指令(微信服务器每5秒重试发一次,一共3次,所以最长等待15秒。)

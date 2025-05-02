@@ -2,14 +2,17 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/base64"
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"math/rand"
 	"net/http"
+	neturl "net/url" // 需要导入 net/url 包
 	"os"
 	"os/signal"
 	"regexp"
@@ -116,6 +119,18 @@ func main() {
 
 	// 首先注册处理函数
 	http.HandleFunc("/wx_callback", wxCallbackHandler)
+
+	// 获取配置中的端口列表
+	ports := config.GetForwardPort()
+
+	// 遍历端口列表，为每个有效的端口创建动态的转发处理函数
+	for _, port := range ports {
+		// 检查端口是否为有效的数字
+		if _, err := strconv.Atoi(port); err == nil {
+			// 为每个端口注册对应的转发 handler
+			http.HandleFunc(fmt.Sprintf("/%s", port), forwardHandler(port))
+		}
+	}
 
 	// 从配置中获取端口号并转换为字符串
 	wxport := strconv.Itoa(conf.Settings.WxPort) // 将 int 类型端口转换为字符串
@@ -1098,4 +1113,81 @@ func parseNewIDIndex(content string) int {
 		}
 	}
 	return -1
+}
+
+// forwardHandler 用于将请求转发到目标端口的 /wx_callback
+func forwardHandler(port string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// 构造目标URL，转发请求到目标端口的 /wx_callback
+		originalURL := r.URL
+		targetURL := fmt.Sprintf("http://localhost:%s/wx_callback", port)
+
+		// 获取原请求的 URL 查询参数
+		params := originalURL.Query()
+
+		// 将查询参数附加到目标 URL 上
+		urlWithParams, err := neturl.Parse(targetURL)
+		if err != nil {
+			log.Printf("Error parsing target URL: %v", err)
+			http.Error(w, "Failed to parse target URL", http.StatusInternalServerError)
+			return
+		}
+
+		// 将查询参数加入到目标 URL
+		urlWithParams.RawQuery = params.Encode()
+
+		// 创建一个 HTTP 客户端
+		client := &http.Client{}
+
+		// 创建一个新的请求，保持原请求的方法、URL和头部
+		req, err := http.NewRequest(r.Method, urlWithParams.String(), r.Body)
+		if err != nil {
+			log.Printf("Error creating request: %v", err)
+			http.Error(w, "Failed to create request", http.StatusInternalServerError)
+			return
+		}
+
+		// 复制原请求的头部
+		req.Header = r.Header
+
+		// 如果有请求体，确保能够正确地读取和转发
+		if r.Body != nil {
+			defer r.Body.Close()
+			body, err := io.ReadAll(r.Body)
+			if err != nil {
+				log.Printf("Error reading body: %v", err)
+				http.Error(w, "Failed to read body", http.StatusInternalServerError)
+				return
+			}
+			req.Body = io.NopCloser(bytes.NewReader(body))
+		}
+
+		// 执行转发请求
+		resp, err := client.Do(req)
+		if err != nil {
+			log.Printf("Error forwarding request: %v", err)
+			http.Error(w, "Failed to forward request", http.StatusInternalServerError)
+			return
+		}
+		defer resp.Body.Close()
+
+		// 将转发的响应写回客户端
+		for key, values := range resp.Header {
+			for _, value := range values {
+				w.Header().Add(key, value)
+			}
+		}
+
+		// 设置正确的响应状态码
+		w.WriteHeader(resp.StatusCode)
+
+		// 将响应体复制到原响应中
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			log.Printf("Error reading response body: %v", err)
+			http.Error(w, "Failed to read response body", http.StatusInternalServerError)
+			return
+		}
+		w.Write(body)
+	}
 }

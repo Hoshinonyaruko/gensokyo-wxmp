@@ -136,6 +136,7 @@ type Settings struct {
 	ChatBotAppid           string               `yaml:"chatbot_appid"`
 	ChatBotToken           string               `yaml:"chatbot_token"`
 	ChatBotAesKey          string               `yaml:"chatbot_aeskey"`
+	ForwardPort            []string             `yaml:"forwardPort"`
 }
 
 // LoadConfig 从文件中加载配置并初始化单例配置
@@ -1705,4 +1706,14 @@ func GetChatBotAesKey() string {
 		return ""
 	}
 	return instance.Settings.ChatBotAesKey
+}
+
+// 获取ForwardPort
+func GetForwardPort() []string {
+	mu.Lock()
+	defer mu.Unlock()
+	if instance != nil {
+		return instance.Settings.ForwardPort
+	}
+	return nil // 返回nil，如果instance为nil
 }
